@@ -1,11 +1,13 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { createSubjectContext } from "@/lib/subject/middleware/subject-middleware";
 import { ratelimit } from "@/lib/utils/ratelimit";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import superjson from "superjson";
+import z from "zod";
 
 export const createTRPCContext = cache(async () => {
   const session = await auth();
@@ -91,3 +93,28 @@ export const adminProcedure = t.procedure.use(async function isAdmin(opts) {
     },
   });
 });
+
+/**
+ * Subject-scoped procedure that validates user has access to the subject
+ * Requires subjectId in input and adds subject context
+ */
+export const subjectProcedure = protectedProcedure
+  .input(
+    z.object({
+      subjectId: z.string().uuid("Invalid subject ID"),
+    })
+  )
+  .use(async function validateSubject(opts) {
+    const { ctx, input } = opts;
+
+    if (!ctx.userId) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    // Validate organization access and create enhanced context
+    const subjectContext = await createSubjectContext(ctx, input.subjectId);
+
+    return opts.next({
+      ctx: subjectContext,
+    });
+  });

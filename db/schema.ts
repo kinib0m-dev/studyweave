@@ -7,6 +7,7 @@ import {
   uuid,
   boolean,
   index,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -170,3 +171,38 @@ export const twoFactorConfirmation = pgTable(
     userIdIdx: index("two_factor_confirmations_user_id_idx").on(table.userId),
   })
 );
+
+// ------------------------------------ SUBJECTS ------------------------------------
+// Predefined subject colors
+export const subjectColorEnum = pgEnum("subject_color", [
+  "blue",
+  "green",
+  "purple",
+  "red",
+  "orange",
+  "yellow",
+  "pink",
+  "teal",
+  "indigo",
+  "gray",
+]);
+
+// subjects table
+export const subjects = pgTable("subjects", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // For clean URLs
+  description: text("description"), // Optional description
+  color: subjectColorEnum("color").notNull().default("blue"), // Predefined colors
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

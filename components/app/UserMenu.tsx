@@ -68,7 +68,7 @@ export function UserMenu({ name, email, image }: UserMenuProps) {
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link href="/settings">
-              <Settings className="mr-2 h-4 w-4" />
+              <Settings className="mr-2 h-4 w-4 text-muted-foreground hover:text-foreground" />
               <span>Settings</span>
             </Link>
           </DropdownMenuItem>
@@ -81,7 +81,7 @@ export function UserMenu({ name, email, image }: UserMenuProps) {
         >
           <DropdownMenuItem asChild>
             <button type="submit" className="w-full cursor-pointer">
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className="mr-2 h-4 w-4 text-muted-foreground hover:text-foreground" />
               <span>Log out</span>
             </button>
           </DropdownMenuItem>
