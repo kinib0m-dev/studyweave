@@ -8,6 +8,7 @@ import {
   boolean,
   index,
   pgEnum,
+  customType,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -202,6 +203,43 @@ export const subjects = pgTable("subjects", {
   description: text("description"), // Optional description
   color: subjectColorEnum("color").notNull().default("blue"), // Predefined colors
 
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ------------------------------------ VECTOR TYPE ------------------------------------
+const vector = (dimensions: number) =>
+  customType<{
+    data: number[];
+    driverData: string;
+  }>({
+    dataType() {
+      return `vector(${dimensions})`;
+    },
+    toDriver(value) {
+      // Format as Postgres array string for pgvector: e.g. '[0.1, 0.2, ...]'
+      return `[${value.join(",")}]`;
+    },
+    fromDriver(value) {
+      // Convert PG string back to array
+      return value.slice(1, -1).split(",").map(Number);
+    },
+  });
+
+// ------------------------------------ DOCUMENTS ------------------------------------
+// Documents table for storing text content for embedding
+export const documents = pgTable("documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // Content
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  fileName: text("file_name"),
+  // Vector
+  embedding: vector(768)("vector"),
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
