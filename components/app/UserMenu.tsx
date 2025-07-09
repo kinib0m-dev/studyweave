@@ -10,11 +10,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings, LogOut, ChevronRight } from "lucide-react";
+import { Settings, LogOut, ChevronDown } from "lucide-react";
 import { logOut } from "@/lib/auth/auth.actions";
 import Link from "next/link";
-import { useSidebar } from "../ui/sidebar";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 type UserMenuProps = {
   name?: string | null;
@@ -23,16 +22,10 @@ type UserMenuProps = {
 };
 
 export function UserMenu({ name, email, image }: UserMenuProps) {
-  const { open } = useSidebar();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          className={cn(
-            "w-full text-left flex items-center gap-2 p-2 rounded-md hover:bg-sidebar-accent",
-            !open && "justify-center"
-          )}
-        >
+        <Button variant="ghost" className="h-10 px-3 gap-2">
           <Avatar className="h-8 w-8">
             {image ? (
               <AvatarImage src={image} alt={name || ""} />
@@ -42,18 +35,11 @@ export function UserMenu({ name, email, image }: UserMenuProps) {
               </AvatarFallback>
             )}
           </Avatar>
-          {open && (
-            <>
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <span className="text-sm font-medium truncate">{name}</span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {email}
-                </span>
-              </div>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </>
-          )}
-        </button>
+          <div className="hidden md:flex flex-col items-start">
+            <span className="text-sm font-medium">{name}</span>
+          </div>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">

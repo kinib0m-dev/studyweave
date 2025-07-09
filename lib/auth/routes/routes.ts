@@ -23,7 +23,7 @@ export const authRoutes = [
  * An array of routes that are used after authentication.
  * @type {string[]}
  */
-export const privateRoutes = ["/settings"];
+export const privateRoutes = ["/settings", "/home"];
 
 /**
  * The prefix for authentication routes.
@@ -36,4 +36,4 @@ export const apiAuthPrefix = "/api/auth";
  * The default redirect path after logging in.
  * @type {string}
  */
-export const DEFAULT_LOGIN_REDIRECT = "/settings";
+export const DEFAULT_LOGIN_REDIRECT = "/home";

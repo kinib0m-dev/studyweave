@@ -1,7 +1,6 @@
 "use client";
 
-import { AppSidebar } from "./AppSidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppNav } from "./AppNav";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -17,13 +16,11 @@ export default function AppLayout({
   image,
 }: AppLayoutProps) {
   return (
-    <SidebarProvider>
-      <div className="w-full">
-        <div className="flex min-h-screen">
-          <AppSidebar name={name} image={image} email={email} />
-          <main className="flex-1 overflow-y-auto p-4">{children}</main>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen bg-background">
+      <AppNav name={name} email={email} image={image} />
+      <main className="pt-16">
+        <div className="container mx-auto p-6">{children}</div>
+      </main>
+    </div>
   );
 }
