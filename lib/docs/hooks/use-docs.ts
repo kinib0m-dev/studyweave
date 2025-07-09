@@ -13,10 +13,12 @@ import {
  */
 export function useCreateDocument() {
   const router = useRouter();
+  const utils = trpc.useUtils();
 
   const mutation = trpc.docs.create.useMutation({
     onSuccess: () => {
       // Invalidate queries to refetch document list
+      utils.docs.getAll.invalidate();
       router.refresh();
     },
     onError: (error) => {
@@ -38,6 +40,28 @@ export function useCreateDocument() {
     isLoading: mutation.isPending,
     isError: mutation.isError,
     error: mutation.error,
+  };
+}
+
+/**
+ * Hook for fetching all documents
+ */
+export function useDocuments(options?: {
+  subjectId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const { data, isLoading, isError, error, refetch } =
+    trpc.docs.getAll.useQuery(options, {
+      staleTime: 30 * 1000, // 30 seconds
+    });
+
+  return {
+    documents: data?.documents || [],
+    isLoading,
+    isError,
+    error,
+    refetch,
   };
 }
 
@@ -76,6 +100,7 @@ export function useUpdateDocument() {
     onSuccess: (data) => {
       // Invalidate queries to refetch documents
       utils.docs.getById.invalidate({ id: data.document.id });
+      utils.docs.getAll.invalidate();
       router.refresh();
     },
     onError: (error) => {
@@ -104,10 +129,12 @@ export function useUpdateDocument() {
  * Hook for deleting a document
  */
 export function useDeleteDocument() {
+  const utils = trpc.useUtils();
   const router = useRouter();
 
   const mutation = trpc.docs.delete.useMutation({
     onSuccess: () => {
+      utils.docs.getAll.invalidate();
       router.refresh();
     },
     onError: (error) => {

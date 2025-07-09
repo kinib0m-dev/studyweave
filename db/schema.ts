@@ -9,6 +9,7 @@ import {
   index,
   pgEnum,
   customType,
+  json,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -229,18 +230,41 @@ const vector = (dimensions: number) =>
 
 // ------------------------------------ DOCUMENTS ------------------------------------
 // Documents table for storing text content for embedding
-export const documents = pgTable("documents", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  // Content
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  fileName: text("file_name"),
-  // Vector
-  embedding: vector(768)("vector"),
-  // Timestamps
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+
+    // Content
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    fileName: text("file_name"),
+
+    // File metadata
+    fileSize: integer("file_size"),
+    fileType: text("file_type"),
+    wordCount: integer("word_count"),
+    pageCount: integer("page_count"),
+    metadata: json("metadata"),
+
+    // Vector
+    embedding: vector(768)("embedding"),
+
+    // Timestamps
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Indexes
+    userIdIdx: index("documents_user_id_idx").on(table.userId),
+    subjectIdIdx: index("documents_subject_id_idx").on(table.subjectId),
+    fileTypeIdx: index("documents_file_type_idx").on(table.fileType),
+    createdAtIdx: index("documents_created_at_idx").on(table.createdAt),
+  })
+);

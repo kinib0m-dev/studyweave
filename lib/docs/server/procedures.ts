@@ -3,7 +3,7 @@ import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { TRPCError } from "@trpc/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   createDocumentSchema,
   updateDocumentSchema,
@@ -37,6 +37,12 @@ export const docsRouter = createTRPCRouter({
             title: input.title,
             content: input.content,
             fileName: input.fileName,
+            fileSize: input.fileSize,
+            fileType: input.fileType,
+            wordCount: input.wordCount,
+            pageCount: input.pageCount,
+            metadata: input.metadata,
+            subjectId: input.subjectId,
             embedding: embedding,
           })
           .returning();
@@ -54,16 +60,73 @@ export const docsRouter = createTRPCRouter({
       }
     }),
 
+  // Get all documents for current user
+  getAll: protectedProcedure
+    .input(
+      z
+        .object({
+          subjectId: z.string().uuid().optional(),
+          limit: z.number().min(1).max(100).default(50),
+          offset: z.number().min(0).default(0),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        const userId = ctx.userId as string;
+        const { subjectId, limit = 50, offset = 0 } = input || {};
+
+        // Build where conditions
+        const whereConditions = [eq(documents.userId, userId)];
+
+        if (subjectId) {
+          whereConditions.push(eq(documents.subjectId, subjectId));
+        }
+
+        const docs = await db
+          .select({
+            id: documents.id,
+            title: documents.title,
+            fileName: documents.fileName,
+            fileType: documents.fileType,
+            fileSize: documents.fileSize,
+            wordCount: documents.wordCount,
+            pageCount: documents.pageCount,
+            subjectId: documents.subjectId,
+            createdAt: documents.createdAt,
+            updatedAt: documents.updatedAt,
+          })
+          .from(documents)
+          .where(and(...whereConditions))
+          .orderBy(desc(documents.createdAt))
+          .limit(limit)
+          .offset(offset);
+
+        return {
+          success: true,
+          documents: docs,
+        };
+      } catch (error) {
+        console.error("Error fetching documents:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch documents",
+        });
+      }
+    }),
+
   // Get a document by ID
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       try {
+        const userId = ctx.userId as string;
+
         // Get the document
         const documentResult = await db
           .select()
           .from(documents)
-          .where(and(eq(documents.id, input.id)))
+          .where(and(eq(documents.id, input.id), eq(documents.userId, userId)))
           .limit(1);
 
         const document = documentResult[0];
@@ -80,7 +143,7 @@ export const docsRouter = createTRPCRouter({
           document,
         };
       } catch (error) {
-        console.error("Error fetching bot document:", error);
+        console.error("Error fetching document:", error);
 
         if (error instanceof TRPCError) {
           throw error;
@@ -96,15 +159,16 @@ export const docsRouter = createTRPCRouter({
   // Update a document
   update: protectedProcedure
     .input(updateDocumentSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
+        const userId = ctx.userId as string;
         const { id, ...updateData } = input;
 
         // Check if document exists and belongs to the user
         const existingDocResult = await db
           .select()
           .from(documents)
-          .where(and(eq(documents.id, id)))
+          .where(and(eq(documents.id, id), eq(documents.userId, userId)))
           .limit(1);
 
         const existingDoc = existingDocResult[0];
@@ -128,7 +192,6 @@ export const docsRouter = createTRPCRouter({
               "Error generating embedding, continuing without it:",
               embeddingError
             );
-            // We'll continue with embedding as null
           }
         }
 
@@ -140,7 +203,7 @@ export const docsRouter = createTRPCRouter({
             ...embeddingUpdate,
             updatedAt: new Date(),
           })
-          .where(and(eq(documents.id, id)))
+          .where(and(eq(documents.id, id), eq(documents.userId, userId)))
           .returning();
 
         return {
@@ -164,13 +227,15 @@ export const docsRouter = createTRPCRouter({
   // Delete a document
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
+        const userId = ctx.userId as string;
+
         // Check if document exists and belongs to the user
         const existingDocResult = await db
           .select()
           .from(documents)
-          .where(and(eq(documents.id, input.id)))
+          .where(and(eq(documents.id, input.id), eq(documents.userId, userId)))
           .limit(1);
 
         const existingDoc = existingDocResult[0];
@@ -183,7 +248,9 @@ export const docsRouter = createTRPCRouter({
         }
 
         // Delete the document
-        await db.delete(documents).where(and(eq(documents.id, input.id)));
+        await db
+          .delete(documents)
+          .where(and(eq(documents.id, input.id), eq(documents.userId, userId)));
 
         return {
           success: true,
