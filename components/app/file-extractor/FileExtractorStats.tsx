@@ -58,66 +58,78 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
     <div className={className}>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+        {/* Total Documents - Soft Blue */}
+        <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30 hover:bg-slate-800/50 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                <p className="text-sm font-medium text-slate-400">
                   Total Documents
                 </p>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                <p className="text-2xl font-bold text-slate-200">
                   {stats?.totalDocuments || 0}
                 </p>
               </div>
-              <FileText className="h-8 w-8 text-blue-500" />
+              <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <FileText className="h-6 w-6 text-blue-400" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/20 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+        {/* Total Words - Soft Green */}
+        <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30 hover:bg-slate-800/50 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <p className="text-sm font-medium text-slate-400">
                   Total Words
                 </p>
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                <p className="text-2xl font-bold text-slate-200">
                   {stats?.totalWords?.toLocaleString() || 0}
                 </p>
               </div>
-              <TrendingUp className="h-8 w-8 text-emerald-500" />
+              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <TrendingUp className="h-6 w-6 text-emerald-400" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+        {/* Storage Used - Soft Purple */}
+        <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30 hover:bg-slate-800/50 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                <p className="text-sm font-medium text-slate-400">
                   Storage Used
                 </p>
-                <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                <p className="text-2xl font-bold text-slate-200">
                   {formatFileSize(stats?.totalFileSize || 0)}
                 </p>
               </div>
-              <HardDrive className="h-8 w-8 text-purple-500" />
+              <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <HardDrive className="h-6 w-6 text-violet-400" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+        {/* Recent Files - Soft Orange */}
+        <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30 hover:bg-slate-800/50 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                <p className="text-sm font-medium text-slate-400">
                   Recent Files
                 </p>
-                <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                <p className="text-2xl font-bold text-slate-200">
                   {recentDocuments.length}
                 </p>
               </div>
-              <Clock className="h-8 w-8 text-orange-500" />
+              <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <Clock className="h-6 w-6 text-orange-400" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -125,19 +137,25 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
 
       {/* Recent Documents */}
       {recentDocuments.length > 0 && (
-        <Card>
+        <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-slate-200">
+                <Clock className="h-5 w-5 text-slate-400" />
                 Recent Documents
-                <Badge variant="secondary">{recentDocuments.length}</Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-slate-700/50 text-slate-300"
+                >
+                  {recentDocuments.length}
+                </Badge>
               </CardTitle>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => refetch()}
                 disabled={isLoading}
+                className="bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50 hover:text-white"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -149,40 +167,33 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {recentDocuments.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/40 transition-colors"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{doc.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-sm text-muted-foreground">
-                            {doc.fileName}
-                          </span>
-                          {doc.fileType && (
-                            <Badge variant="secondary" className="text-xs">
-                              {doc.fileType.split("/").pop()?.toUpperCase()}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 rounded bg-slate-600/40">
+                      <FileText className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-200">{doc.title}</p>
+                      <p className="text-sm text-slate-400">{doc.fileName}</p>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    {doc.wordCount && (
-                      <span>{doc.wordCount.toLocaleString()} words</span>
-                    )}
-                    <span>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-400">
                       {formatDistanceToNow(new Date(doc.createdAt), {
                         addSuffix: true,
                       })}
-                    </span>
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className="mt-1 bg-slate-700/30 border-slate-600/40 text-slate-300"
+                    >
+                      {doc.wordCount?.toLocaleString() || 0} words
+                    </Badge>
                   </div>
                 </div>
               ))}
@@ -190,14 +201,6 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
           </CardContent>
         </Card>
       )}
-
-      {/* Auto-refresh indicator */}
-      <div className="flex items-center justify-center mt-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span>Stats update automatically every 30 seconds</span>
-        </div>
-      </div>
     </div>
   );
 }
