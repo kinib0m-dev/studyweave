@@ -8,7 +8,6 @@ import {
   TrendingUp,
   HardDrive,
   Clock,
-  Eye,
   RefreshCw,
   Loader2,
 } from "lucide-react";
@@ -184,9 +183,6 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
                         addSuffix: true,
                       })}
                     </span>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               ))}
