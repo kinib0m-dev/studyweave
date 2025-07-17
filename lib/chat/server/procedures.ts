@@ -177,7 +177,7 @@ export const chatRouter = createTRPCRouter({
           content,
           userId,
           subjectId || conversation.subjectId || undefined,
-          8 // Increased for better context
+          12 // Increased for better context
         );
 
         const documentIds = extractDocumentIds(relevantDocuments);
@@ -193,7 +193,7 @@ export const chatRouter = createTRPCRouter({
           })
           .returning();
 
-        // Generate structured AI response
+        // Generate structured AI response (always uses structured format for source tracking)
         const aiResponse = await generateStructuredChatResponse(
           content,
           conversationHistory,
@@ -265,30 +265,40 @@ export const chatRouter = createTRPCRouter({
     }),
 
   // Update conversation
+  // Update conversation
   updateConversation: protectedProcedure
     .input(updateConversationSchema)
     .mutation(async ({ ctx, input }) => {
       try {
         const userId = ctx.user.id;
-        const { id, ...updates } = input;
+        const { id, title, description } = input;
 
-        const [updatedConversation] = await db
-          .update(conversations)
-          .set({
-            ...updates,
-            updatedAt: new Date(),
-          })
+        // Verify ownership
+        const [conversation] = await db
+          .select()
+          .from(conversations)
           .where(
             and(eq(conversations.id, id), eq(conversations.userId, userId))
           )
-          .returning();
+          .limit(1);
 
-        if (!updatedConversation) {
+        if (!conversation) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Conversation not found",
           });
         }
+
+        // Update conversation
+        const [updatedConversation] = await db
+          .update(conversations)
+          .set({
+            title: title ?? conversation.title,
+            description: description ?? conversation.description,
+            updatedAt: new Date(),
+          })
+          .where(eq(conversations.id, id))
+          .returning();
 
         return {
           success: true,
@@ -312,19 +322,27 @@ export const chatRouter = createTRPCRouter({
         const userId = ctx.user.id;
         const { id } = input;
 
-        const deletedConversation = await db
-          .delete(conversations)
+        // Verify ownership
+        const [conversation] = await db
+          .select()
+          .from(conversations)
           .where(
             and(eq(conversations.id, id), eq(conversations.userId, userId))
           )
-          .returning();
+          .limit(1);
 
-        if (deletedConversation.length === 0) {
+        if (!conversation) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Conversation not found",
           });
         }
+
+        // Delete all messages first (cascade)
+        await db.delete(messages).where(eq(messages.conversationId, id));
+
+        // Delete conversation
+        await db.delete(conversations).where(eq(conversations.id, id));
 
         return {
           success: true,

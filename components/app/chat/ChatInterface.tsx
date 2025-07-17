@@ -102,11 +102,11 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full max-h-screen">
       {/* Header */}
-      <div className="border-b border-slate-700/50 bg-slate-800/30 p-4">
+      <div className="flex-shrink-0 border-b border-slate-700/50 bg-slate-800/30 p-4">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold text-slate-200 truncate">
               {conversation.title}
             </h1>
@@ -117,7 +117,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {preferences.antiHallucinationEnabled ? (
               <Badge
                 variant="outline"
@@ -140,46 +140,52 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       </div>
 
       {/* Messages */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-        {messages.length === 0 ? (
-          <ChatWelcome conversationTitle={conversation.title} />
-        ) : (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            {messages.map((message) => {
-              let isStructured = false;
-              try {
-                const parsed = JSON.parse(message.content);
-                isStructured =
-                  parsed.response && Array.isArray(parsed.response);
-              } catch {
-                // Not structured
-              }
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ScrollArea ref={scrollAreaRef} className="h-full">
+          <div className="p-4">
+            {messages.length === 0 ? (
+              <ChatWelcome conversationTitle={conversation.title} />
+            ) : (
+              <div className="space-y-6 max-w-4xl mx-auto">
+                {messages.map((message) => {
+                  let isStructured = false;
+                  try {
+                    const parsed = JSON.parse(message.content);
+                    isStructured =
+                      parsed.response && Array.isArray(parsed.response);
+                  } catch {
+                    // Not structured
+                  }
 
-              const messageSources = Array.isArray(message.sources)
-                ? message.sources
-                : undefined;
+                  const messageSources = Array.isArray(message.sources)
+                    ? message.sources
+                    : undefined;
 
-              return (
-                <Message
-                  key={message.id}
-                  id={message.id}
-                  role={message.role}
-                  content={message.content}
-                  createdAt={message.createdAt}
-                  isStructured={isStructured}
-                  sources={messageSources}
-                />
-              );
-            })}
+                  return (
+                    <Message
+                      key={message.id}
+                      id={message.id}
+                      role={message.role}
+                      content={message.content}
+                      createdAt={message.createdAt}
+                      isStructured={isStructured}
+                      sources={messageSources}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </ScrollArea>
+        </ScrollArea>
+      </div>
 
       {/* Input */}
-      <ChatInput
-        conversationId={conversationId}
-        onMessageSent={handleMessageSent}
-      />
+      <div className="flex-shrink-0">
+        <ChatInput
+          conversationId={conversationId}
+          onMessageSent={handleMessageSent}
+        />
+      </div>
     </div>
   );
 }
@@ -192,7 +198,7 @@ function ChatWelcome({ conversationTitle }: ChatWelcomeProps) {
   const preferences = getChatPreferences();
 
   return (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="flex-1 flex items-center justify-center min-h-[60vh]">
       <div className="text-center space-y-6 max-w-2xl mx-auto px-4">
         <div className="space-y-4">
           <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto">
@@ -224,47 +230,26 @@ function ChatWelcome({ conversationTitle }: ChatWelcomeProps) {
           <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
             <div className="flex items-center gap-3 mb-2">
               <Brain className="h-5 w-5 text-emerald-400" />
-              <h3 className="font-semibold text-slate-200">
-                Anti-Hallucination
-              </h3>
+              <h3 className="font-semibold text-slate-200">AI-Enhanced</h3>
             </div>
             <p className="text-sm text-slate-400">
-              {preferences.antiHallucinationEnabled
-                ? "Source attribution and highlighting active"
-                : "Enable in settings for source tracking"}
+              Combines document insights with AI knowledge for comprehensive
+              answers
             </p>
           </div>
 
           <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
             <div className="flex items-center gap-3 mb-2">
               <TrendingUp className="h-5 w-5 text-purple-400" />
-              <h3 className="font-semibold text-slate-200">Smart Context</h3>
+              <h3 className="font-semibold text-slate-200">
+                Anti-Hallucination
+              </h3>
             </div>
             <p className="text-sm text-slate-400">
-              Finds the most relevant information for your questions
+              {preferences.antiHallucinationEnabled
+                ? "Enabled - sources are clearly marked"
+                : "Disabled - AI knowledge is freely used"}
             </p>
-          </div>
-        </div>
-
-        {/* Example questions */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-200">Try asking:</h3>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {[
-              "Summarize the key concepts",
-              "Explain this topic in detail",
-              "What are the main differences between...",
-              "Give me examples of...",
-              "How does this relate to...",
-            ].map((example, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="bg-slate-700/30 text-slate-300 border-slate-600/50 cursor-pointer hover:bg-slate-600/30 transition-colors"
-              >
-                {example}
-              </Badge>
-            ))}
           </div>
         </div>
       </div>

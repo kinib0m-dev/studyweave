@@ -1,6 +1,5 @@
-import { generateObject } from "ai";
+import { generateObject, streamObject } from "ai";
 import { gemini } from "@/lib/utils/google";
-
 import {
   structuredResponseSchema,
   StructuredResponse,
@@ -13,7 +12,12 @@ export interface ChatResponse {
   tokenCount?: number;
 }
 
-export function createAntiHallucinationSystemPrompt(
+export interface StreamingChatResponse {
+  stream: AsyncIterable<Partial<StructuredResponse>>;
+  finalResponse: Promise<StructuredResponse>;
+}
+
+export function createSystemPrompt(
   context: string,
   documents: DocumentChunk[]
 ): string {
@@ -23,16 +27,7 @@ export function createAntiHallucinationSystemPrompt(
     )
     .join("\n");
 
-  return `You are StudyWeave AI, an intelligent study assistant. Your primary goal is to help students learn using ONLY their uploaded study materials.
-
-CRITICAL INSTRUCTIONS FOR ANTI-HALLUCINATION:
-1. You MUST prioritize information from the provided context over your general knowledge
-2. When answering, break your response into sentences
-3. For EACH sentence, you must identify if it comes from the uploaded files or is your own reasoning
-4. If a sentence contains information from the files, specify which document it came from
-5. Aim for AT LEAST 80% of your response to be based on the provided files
-6. When you add reasoning or explanations not directly in the files, clearly mark them as "generated"
-7. Be extremely conservative - if you're not sure if information came from the files, mark it as "generated"
+  return `You are StudyWeave AI, an intelligent study assistant designed to help students learn effectively. You have access to both the user's uploaded study materials and your own knowledge base.
 
 Available Documents:
 ${documentList}
@@ -40,19 +35,29 @@ ${documentList}
 Context from user's study materials:
 ${context}
 
-RESPONSE FORMAT REQUIREMENTS:
-- Break your response into logical sentences
-- For each sentence, determine if it's "from_file" or "generated"
-- If "from_file", specify the exact source document ID and title
-- Provide a confidence score (0-1) for each attribution
-- Prioritize accuracy over length - it's better to give a shorter response that's well-sourced
+RESPONSE GUIDELINES:
+- Provide comprehensive, educational responses that help students understand concepts
+- Use clear explanations with examples when appropriate
+- Structure your response with bullet points, lists, or numbered steps when it improves clarity
+- Support learning by connecting concepts and encouraging critical thinking
+- Use both document content and your knowledge to give the best possible answer
+- When you can answer with more detail or context, please do so
+- If the user asks for more details, provide them from both your knowledge and the documents
 
-Guidelines for good educational responses:
-- Provide clear, educational explanations
-- Reference specific parts of the uploaded materials when possible
-- If information is missing from the uploaded materials, clearly state this
-- Encourage critical thinking by connecting concepts from the materials
-- Ask follow-up questions when appropriate`;
+SOURCE ATTRIBUTION (ALWAYS REQUIRED):
+1. Break your response into logical segments (sentences, bullet points, or paragraphs)
+2. For EACH segment, identify if it comes primarily from "from_file" or is "generated" (your knowledge)
+3. If from files, specify the exact source document ID and title
+4. Provide confidence scores (0-1) for each attribution
+5. When providing additional context or explanations beyond the files, mark them as "generated"
+6. Use structured formatting like lists, bullet points, or numbered steps when helpful
+
+RESPONSE FORMAT:
+- Break response into logical segments
+- Each segment must be tagged as "from_file" or "generated"
+- Include confidence scores for attribution accuracy
+- Make responses educational, comprehensive, and well-structured
+- Don't limit yourself to only document content - enhance with your knowledge when helpful`;
 }
 
 export async function generateStructuredChatResponse(
@@ -62,15 +67,11 @@ export async function generateStructuredChatResponse(
 ): Promise<ChatResponse> {
   try {
     const context = formatContextFromDocuments(relevantDocuments);
-    const systemPrompt = createAntiHallucinationSystemPrompt(
-      context,
-      relevantDocuments
-    );
+    const systemPrompt = createSystemPrompt(context, relevantDocuments);
 
-    // Prepare conversation history for the model (convert structured responses back to text)
+    // Prepare conversation history
     const formattedHistory = conversationHistory.map((msg) => {
       if (msg.role === "assistant") {
-        // If this is a structured response, convert it back to plain text for context
         try {
           const parsed = JSON.parse(msg.content);
           if (parsed.response && Array.isArray(parsed.response)) {
@@ -82,7 +83,7 @@ export async function generateStructuredChatResponse(
             };
           }
         } catch {
-          // If it's not structured, use as is
+          // Use as is if not structured
         }
       }
       return msg;
@@ -98,10 +99,9 @@ export async function generateStructuredChatResponse(
       model: gemini("gemini-2.0-flash-001"),
       schema: structuredResponseSchema,
       messages,
-      temperature: 0.3, // Lower temperature for more consistent structured output
+      temperature: 0.4,
     });
 
-    // Validate and enhance the response
     const enhancedResponse = enhanceStructuredResponse(
       result.object,
       relevantDocuments
@@ -113,45 +113,96 @@ export async function generateStructuredChatResponse(
     };
   } catch (error) {
     console.error("Error generating structured chat response:", error);
-
-    // Fallback response
-    const fallbackResponse: StructuredResponse = {
-      response: [
-        {
-          text: "I apologize, but I'm having trouble processing your request. Please try rephrasing your question.",
-          type: "generated",
-          sourceDocumentId: null,
-          sourceDocumentTitle: null,
-          confidence: 1.0,
-        },
-      ],
-      metadata: {
-        totalSegments: 1,
-        fileBasedSegments: 0,
-        generatedSegments: 1,
-        fileUsagePercentage: 0,
-        averageConfidence: 1.0,
-        primarySources: [],
-      },
-    };
-
-    return {
-      structuredContent: fallbackResponse,
-    };
+    return createFallbackResponse();
   }
+}
+
+export async function generateStreamingChatResponse(
+  userMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  relevantDocuments: DocumentChunk[]
+): Promise<StreamingChatResponse> {
+  const context = formatContextFromDocuments(relevantDocuments);
+  const systemPrompt = createSystemPrompt(context, relevantDocuments);
+
+  const formattedHistory = conversationHistory.map((msg) => {
+    if (msg.role === "assistant") {
+      try {
+        const parsed = JSON.parse(msg.content);
+        if (parsed.response && Array.isArray(parsed.response)) {
+          return {
+            role: msg.role,
+            content: parsed.response
+              .map((segment: ResponseSegment) => segment.text)
+              .join(" "),
+          };
+        }
+      } catch {
+        // Use as is if not structured
+      }
+    }
+    return msg;
+  });
+
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...formattedHistory,
+    { role: "user" as const, content: userMessage },
+  ];
+
+  const finalResponsePromise = (async () => {
+    try {
+      const { object } = await streamObject({
+        model: gemini("gemini-2.0-flash-001"),
+        schema: structuredResponseSchema,
+        messages,
+        temperature: 0.4,
+      });
+
+      const finalObject = await object;
+      return enhanceStructuredResponse(finalObject, relevantDocuments);
+    } catch (error) {
+      console.error("Error in streaming response:", error);
+      const fallback = createFallbackResponse();
+      return fallback.structuredContent;
+    }
+  })();
+
+  // Create async iterable for streaming
+  const streamIterable = async function* () {
+    try {
+      const { partialObjectStream } = await streamObject({
+        model: gemini("gemini-2.0-flash-001"),
+        schema: structuredResponseSchema,
+        messages,
+        temperature: 0.4,
+      });
+
+      for await (const partialObject of partialObjectStream) {
+        yield partialObject as Partial<StructuredResponse>;
+      }
+    } catch (error) {
+      console.error("Error in stream iteration:", error);
+      // Yield fallback
+      yield createFallbackResponse().structuredContent;
+    }
+  };
+
+  return {
+    stream: streamIterable(),
+    finalResponse: finalResponsePromise,
+  };
 }
 
 function enhanceStructuredResponse(
   response: StructuredResponse,
   availableDocuments: DocumentChunk[]
 ): StructuredResponse {
-  // Validate document IDs and fix any inconsistencies
   const validDocumentIds = new Set(availableDocuments.map((doc) => doc.id));
   const documentMap = new Map(availableDocuments.map((doc) => [doc.id, doc]));
 
   const enhancedSegments = response.response.map((segment) => {
     if (segment.type === "from_file" && segment.sourceDocumentId) {
-      // Verify the document ID exists
       if (!validDocumentIds.has(segment.sourceDocumentId)) {
         console.warn(
           `Invalid document ID in response: ${segment.sourceDocumentId}`
@@ -165,7 +216,6 @@ function enhanceStructuredResponse(
         };
       }
 
-      // Ensure the document title matches
       const doc = documentMap.get(segment.sourceDocumentId);
       if (doc && segment.sourceDocumentTitle !== doc.title) {
         return {
@@ -235,6 +285,32 @@ function enhanceStructuredResponse(
       averageConfidence,
       primarySources,
     },
+  };
+}
+
+function createFallbackResponse(): ChatResponse {
+  const fallbackResponse: StructuredResponse = {
+    response: [
+      {
+        text: "I apologize, but I'm having trouble processing your request. Please try rephrasing your question.",
+        type: "generated",
+        sourceDocumentId: null,
+        sourceDocumentTitle: null,
+        confidence: 1.0,
+      },
+    ],
+    metadata: {
+      totalSegments: 1,
+      fileBasedSegments: 0,
+      generatedSegments: 1,
+      fileUsagePercentage: 0,
+      averageConfidence: 1.0,
+      primarySources: [],
+    },
+  };
+
+  return {
+    structuredContent: fallbackResponse,
   };
 }
 

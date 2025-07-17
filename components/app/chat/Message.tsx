@@ -1,43 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Copy, Check, User, Bot, FileText } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  getChatPreferences,
+  ChatPreferences,
+} from "@/lib/chat/utils/preferences";
+import { StructuredResponse } from "@/lib/chat/validation/chat-schema";
+import {
+  formatStructuredResponseForUI,
+  getFileUsageBadgeClass,
+  generateSourceTooltipContent,
+} from "@/lib/chat/utils/response-formatter";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  User,
-  Bot,
-  FileText,
-  Eye,
-  Copy,
-  Check,
-  AlertTriangle,
-} from "lucide-react";
-import {
-  MessageRole,
-  StructuredResponse,
-} from "@/lib/chat/validation/chat-schema";
-import {
-  formatStructuredResponseForUI,
-  getFileUsageBadgeClass,
-  shouldShowFileUsageWarning,
-  generateSourceTooltipContent,
-} from "@/lib/chat/utils/response-formatter";
-import {
-  getChatPreferences,
-  ChatPreferences,
-} from "@/lib/chat/utils/preferences";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 interface MessageProps {
   id: string;
-  role: MessageRole;
+  role: "user" | "assistant" | "system";
   content: string;
   createdAt: Date;
   isStructured?: boolean;
@@ -47,6 +38,7 @@ interface MessageProps {
 export function Message({
   role,
   content,
+  createdAt,
   isStructured = false,
   sources,
 }: MessageProps) {
@@ -54,19 +46,14 @@ export function Message({
   const [preferences, setPreferences] =
     useState<ChatPreferences>(getChatPreferences());
 
-  // Listen for preference changes
   useEffect(() => {
     const handleStorageChange = () => {
       setPreferences(getChatPreferences());
     };
 
-    // Listen for storage changes (when preferences are updated)
     window.addEventListener("storage", handleStorageChange);
-
-    // Also listen for a custom event we'll dispatch when preferences change
     window.addEventListener("chatPreferencesChanged", handleStorageChange);
 
-    // Cleanup
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("chatPreferencesChanged", handleStorageChange);
@@ -101,7 +88,35 @@ export function Message({
         <div className="flex items-start gap-3 max-w-[80%]">
           <div className="flex-1">
             <div className="bg-blue-600 text-white rounded-2xl rounded-tr-md px-4 py-3">
-              <p className="text-sm leading-relaxed">{content}</p>
+              <div className="text-sm leading-relaxed">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <p className="mb-2 last:mb-0">{children}</p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc ml-4 mb-2">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal ml-4 mb-2">{children}</ol>
+                    ),
+                    li: ({ children }) => <li className="mb-1">{children}</li>,
+                    strong: ({ children }) => (
+                      <strong className="font-semibold">{children}</strong>
+                    ),
+                    em: ({ children }) => (
+                      <em className="italic">{children}</em>
+                    ),
+                    code: ({ children }) => (
+                      <code className="bg-blue-700/50 px-1 py-0.5 rounded text-sm">
+                        {children}
+                      </code>
+                    ),
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
+              </div>
             </div>
             <div className="flex justify-end mt-1">
               <Button
@@ -118,9 +133,11 @@ export function Message({
               </Button>
             </div>
           </div>
-          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mt-1">
-            <User className="h-4 w-4 text-white" />
-          </div>
+          <Avatar className="w-8 h-8">
+            <AvatarFallback className="bg-blue-600 text-white">
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
         </div>
       </div>
     );
@@ -129,9 +146,11 @@ export function Message({
   return (
     <div className="flex justify-start mb-4">
       <div className="flex items-start gap-3 max-w-[90%]">
-        <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center shrink-0 mt-1">
-          <Bot className="h-4 w-4 text-slate-300" />
-        </div>
+        <Avatar className="w-8 h-8">
+          <AvatarFallback className="bg-slate-700 text-slate-300">
+            <Bot className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
         <div className="flex-1">
           <AssistantMessageContent
             content={content}
@@ -139,7 +158,10 @@ export function Message({
             preferences={preferences}
             sources={sources}
           />
-          <div className="flex justify-start mt-1">
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-slate-500">
+              {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+            </span>
             <Button
               variant="ghost"
               size="sm"
@@ -173,7 +195,6 @@ function AssistantMessageContent({
 }: AssistantMessageContentProps) {
   // If anti-hallucination is disabled OR content is not structured, show simple format
   if (!isStructured || !preferences.antiHallucinationEnabled) {
-    // For structured content with anti-hallucination disabled, convert to plain text
     let displayContent = content;
     if (isStructured) {
       try {
@@ -188,9 +209,62 @@ function AssistantMessageContent({
 
     return (
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
-        <p className="text-sm leading-relaxed text-slate-200">
-          {displayContent}
-        </p>
+        <div className="text-sm leading-relaxed text-slate-200">
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+              ul: ({ children }) => (
+                <ul className="list-disc ml-4 mb-3 space-y-1">{children}</ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="list-decimal ml-4 mb-3 space-y-1">{children}</ol>
+              ),
+              li: ({ children }) => (
+                <li className="text-slate-200">{children}</li>
+              ),
+              strong: ({ children }) => (
+                <strong className="font-semibold text-slate-100">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => (
+                <em className="italic text-slate-300">{children}</em>
+              ),
+              h1: ({ children }) => (
+                <h1 className="text-xl font-bold mb-3 text-slate-100">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-lg font-semibold mb-2 text-slate-100">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-base font-medium mb-2 text-slate-100">
+                  {children}
+                </h3>
+              ),
+              code: ({ children }) => (
+                <code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-sm text-slate-200 font-mono">
+                  {children}
+                </code>
+              ),
+              pre: ({ children }) => (
+                <pre className="bg-slate-900/50 border border-slate-600/50 rounded-lg p-3 mb-3 overflow-x-auto">
+                  {children}
+                </pre>
+              ),
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-4 border-slate-600 pl-4 italic text-slate-300 mb-3">
+                  {children}
+                </blockquote>
+              ),
+            }}
+          >
+            {displayContent}
+          </ReactMarkdown>
+        </div>
       </div>
     );
   }
@@ -202,7 +276,9 @@ function AssistantMessageContent({
   } catch {
     return (
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
-        <p className="text-sm leading-relaxed text-slate-200">{content}</p>
+        <div className="text-sm leading-relaxed text-slate-200">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
       </div>
     );
   }
@@ -213,98 +289,73 @@ function AssistantMessageContent({
   );
 
   const { metadata } = structuredResponse;
-  const showWarning = shouldShowFileUsageWarning(
-    metadata.fileUsagePercentage,
-    preferences.minimumFileUsageWarning
-  );
 
   return (
     <div className="space-y-3">
-      {/* Anti-hallucination header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge
-            className={getFileUsageBadgeClass(metadata.fileUsagePercentage)}
-          >
-            <Eye className="h-3 w-3 mr-1" />
-            {metadata.fileUsagePercentage}% from files
-          </Badge>
-
-          {showWarning && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Low file usage - response may contain general knowledge</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
-          {metadata.primarySources.length > 0 && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <div className="flex items-center gap-1 text-xs text-slate-400">
-                    <FileText className="h-3 w-3" />
-                    <span>{metadata.primarySources.length} sources</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1">
-                    {metadata.primarySources
-                      .slice(0, 3)
-                      .map((source, index) => (
-                        <p key={index} className="text-xs">
-                          {source.documentTitle} ({source.usageCount}x)
-                        </p>
-                      ))}
-                    {metadata.primarySources.length > 3 && (
-                      <p className="text-xs text-slate-400">
-                        +{metadata.primarySources.length - 3} more
-                      </p>
+      {/* Main Content */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
+        <div className="text-sm leading-relaxed space-y-2">
+          <TooltipProvider>
+            {formattedSegments.map((segment) => (
+              <Tooltip key={segment.id}>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      "inline-block px-1.5 py-0.5 rounded border transition-colors",
+                      segment.cssClass
                     )}
-                  </div>
+                  >
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <span>{children}</span>,
+                        strong: ({ children }) => <strong>{children}</strong>,
+                        em: ({ children }) => <em>{children}</em>,
+                        code: ({ children }) => (
+                          <code className="bg-slate-700/50 px-1 py-0.5 rounded text-xs">
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {segment.text}
+                    </ReactMarkdown>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{generateSourceTooltipContent(segment)}</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          )}
+            ))}
+          </TooltipProvider>
         </div>
       </div>
 
-      {/* Message content with highlighting */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
-        <div className="text-sm leading-relaxed">
-          <TooltipProvider>
-            {formattedSegments.map((segment, index) => {
-              const isFileContent = segment.type === "from_file";
-              const tooltipContent = generateSourceTooltipContent(segment);
+      {/* Metadata */}
+      <div className="flex items-center gap-2 text-xs">
+        <Badge
+          variant="outline"
+          className={getFileUsageBadgeClass(metadata.fileUsagePercentage)}
+        >
+          <FileText className="h-3 w-3 mr-1" />
+          {metadata.fileUsagePercentage}% from files
+        </Badge>
 
-              return (
-                <Tooltip key={segment.id}>
-                  <TooltipTrigger asChild>
-                    <span
-                      className={cn(
-                        "transition-all duration-200 cursor-help",
-                        isFileContent
-                          ? "text-emerald-300 bg-emerald-900/20 px-1 py-0.5 rounded border border-emerald-700/30"
-                          : "text-slate-300"
-                      )}
-                    >
-                      {segment.text}
-                      {index < formattedSegments.length - 1 && " "}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    <p className="text-xs">{tooltipContent}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </TooltipProvider>
-        </div>
+        {metadata.primarySources.length > 0 && (
+          <Badge
+            variant="outline"
+            className="bg-slate-700/30 text-slate-300 border-slate-600/50"
+          >
+            {metadata.primarySources.length} source
+            {metadata.primarySources.length !== 1 ? "s" : ""}
+          </Badge>
+        )}
+
+        <Badge
+          variant="outline"
+          className="bg-slate-700/30 text-slate-300 border-slate-600/50"
+        >
+          {Math.round(metadata.averageConfidence * 100)}% confidence
+        </Badge>
       </div>
     </div>
   );
