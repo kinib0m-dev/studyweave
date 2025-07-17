@@ -12,7 +12,6 @@ import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 import { useDocuments } from "@/lib/docs/hooks/use-docs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useCurrentUser } from "@/lib/auth/hooks/use-auth";
 
 interface ChatInputProps {
   conversationId: string;
@@ -24,7 +23,6 @@ export function ChatInput({ conversationId, onMessageSent }: ChatInputProps) {
   const [useStreaming, setUseStreaming] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const user = useCurrentUser();
   const { subjectId } = useCurrentSubject();
   const sendMessage = useSendMessage();
   const { sendStreamingMessage, isStreaming, streamingContent } =
@@ -66,8 +64,7 @@ export function ChatInput({ conversationId, onMessageSent }: ChatInputProps) {
         await sendStreamingMessage(
           conversationId,
           messageToSend,
-          subjectId || undefined,
-          user?.id
+          subjectId || undefined
         );
       } else {
         await sendMessage.mutateAsync({

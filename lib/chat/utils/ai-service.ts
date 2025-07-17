@@ -113,8 +113,72 @@ export async function generateStructuredChatResponse(
     };
   } catch (error) {
     console.error("Error generating structured chat response:", error);
-    return createFallbackResponse();
+
+    // Try fallback with older model
+    try {
+      console.log("Attempting fallback with Gemini 1.5 Flash...");
+      return await generateWithFallbackModel(
+        userMessage,
+        conversationHistory,
+        relevantDocuments
+      );
+    } catch (fallbackError) {
+      console.error("Fallback model also failed:", fallbackError);
+      return createFallbackResponse(userMessage, relevantDocuments);
+    }
   }
+}
+
+async function generateWithFallbackModel(
+  userMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  relevantDocuments: DocumentChunk[]
+): Promise<ChatResponse> {
+  const context = formatContextFromDocuments(relevantDocuments);
+  const systemPrompt = createSystemPrompt(context, relevantDocuments);
+
+  // Prepare conversation history
+  const formattedHistory = conversationHistory.map((msg) => {
+    if (msg.role === "assistant") {
+      try {
+        const parsed = JSON.parse(msg.content);
+        if (parsed.response && Array.isArray(parsed.response)) {
+          return {
+            role: msg.role,
+            content: parsed.response
+              .map((segment: ResponseSegment) => segment.text)
+              .join(" "),
+          };
+        }
+      } catch {
+        // Use as is if not structured
+      }
+    }
+    return msg;
+  });
+
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...formattedHistory,
+    { role: "user" as const, content: userMessage },
+  ];
+
+  const result = await generateObject({
+    model: gemini("gemini-1.5-flash"), // Older, more stable model
+    schema: structuredResponseSchema,
+    messages,
+    temperature: 0.4,
+  });
+
+  const enhancedResponse = enhanceStructuredResponse(
+    result.object,
+    relevantDocuments
+  );
+
+  return {
+    structuredContent: enhancedResponse,
+    tokenCount: result.usage?.totalTokens,
+  };
 }
 
 export async function generateStreamingChatResponse(
@@ -163,8 +227,24 @@ export async function generateStreamingChatResponse(
       return enhanceStructuredResponse(finalObject, relevantDocuments);
     } catch (error) {
       console.error("Error in streaming response:", error);
-      const fallback = createFallbackResponse();
-      return fallback.structuredContent;
+
+      // Try fallback with older model
+      try {
+        console.log("Streaming fallback with Gemini 1.5 Flash...");
+        const { object } = await streamObject({
+          model: gemini("gemini-1.5-flash"),
+          schema: structuredResponseSchema,
+          messages,
+          temperature: 0.4,
+        });
+
+        const finalObject = await object;
+        return enhanceStructuredResponse(finalObject, relevantDocuments);
+      } catch (fallbackError) {
+        console.error("Streaming fallback also failed:", fallbackError);
+        const fallback = createFallbackResponse(userMessage, relevantDocuments);
+        return fallback.structuredContent;
+      }
     }
   })();
 
@@ -183,8 +263,26 @@ export async function generateStreamingChatResponse(
       }
     } catch (error) {
       console.error("Error in stream iteration:", error);
-      // Yield fallback
-      yield createFallbackResponse().structuredContent;
+
+      // Try fallback streaming
+      try {
+        console.log("Fallback streaming with Gemini 1.5 Flash...");
+        const { partialObjectStream } = await streamObject({
+          model: gemini("gemini-1.5-flash"),
+          schema: structuredResponseSchema,
+          messages,
+          temperature: 0.4,
+        });
+
+        for await (const partialObject of partialObjectStream) {
+          yield partialObject as Partial<StructuredResponse>;
+        }
+      } catch (fallbackError) {
+        console.error("Fallback streaming also failed:", fallbackError);
+        // Yield fallback response
+        const fallback = createFallbackResponse(userMessage, relevantDocuments);
+        yield fallback.structuredContent;
+      }
     }
   };
 
@@ -288,11 +386,33 @@ function enhanceStructuredResponse(
   };
 }
 
-function createFallbackResponse(): ChatResponse {
+function createFallbackResponse(
+  userMessage: string,
+  relevantDocuments: DocumentChunk[]
+): ChatResponse {
+  // Create a more helpful fallback response based on available documents
+  const hasDocuments = relevantDocuments.length > 0;
+
+  let responseText =
+    "I apologize, but I'm experiencing temporary technical difficulties. ";
+
+  if (hasDocuments) {
+    const docTitles = relevantDocuments
+      .slice(0, 3)
+      .map((doc) => doc.title)
+      .join(", ");
+    responseText += `However, I found relevant information in your documents: ${docTitles}. `;
+    responseText +=
+      "Please try asking your question again in a moment, or try rephrasing it.";
+  } else {
+    responseText +=
+      "It appears you haven't uploaded any study materials yet. Please upload your notes, slides, or textbooks to get personalized assistance.";
+  }
+
   const fallbackResponse: StructuredResponse = {
     response: [
       {
-        text: "I apologize, but I'm having trouble processing your request. Please try rephrasing your question.",
+        text: responseText,
         type: "generated",
         sourceDocumentId: null,
         sourceDocumentTitle: null,
