@@ -27,7 +27,7 @@ export async function retrieveRelevantDocuments(
   userId: string,
   subjectId?: string,
   limit: number = 5,
-  similarityThreshold: number = 0.7
+  similarityThreshold: number = 0.3
 ): Promise<DocumentChunk[]> {
   try {
     // Generate embedding for the query
@@ -40,6 +40,41 @@ export async function retrieveRelevantDocuments(
       whereCondition =
         and(whereCondition, eq(documents.subjectId, subjectId)) ??
         whereCondition;
+    }
+
+    // First, let's check if we have any documents with embeddings
+    const documentsWithEmbeddings = await db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        embedding: documents.embedding,
+      })
+      .from(documents)
+      .where(
+        and(whereCondition, sql`${documents.embedding} IS NOT NULL`) ??
+          whereCondition
+      );
+
+    if (documentsWithEmbeddings.length === 0) {
+      // Fallback: return documents without similarity scoring
+      const fallbackResults = await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          content: documents.content,
+          fileName: documents.fileName,
+          metadata: documents.metadata,
+        })
+        .from(documents)
+        .where(whereCondition)
+        .orderBy(desc(documents.createdAt))
+        .limit(limit);
+
+      return fallbackResults.map((result) => ({
+        ...result,
+        similarity: 0.5,
+        metadata: result.metadata as DocumentMetadata | null,
+      }));
     }
 
     // Add embedding existence and similarity threshold conditions
@@ -69,13 +104,89 @@ export async function retrieveRelevantDocuments(
       )
       .limit(limit);
 
+    // If similarity search returns too few results, get more documents
+    if (results.length < Math.min(limit, 3)) {
+      const additionalResults = await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          content: documents.content,
+          fileName: documents.fileName,
+          metadata: documents.metadata,
+          similarity: sql<number>`1 - (${documents.embedding} <=> ${JSON.stringify(queryEmbedding)})`,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.userId, userId),
+            subjectId ? eq(documents.subjectId, subjectId) : undefined,
+            sql`${documents.embedding} IS NOT NULL`
+          ) ?? eq(documents.userId, userId)
+        )
+        .orderBy(
+          desc(
+            sql`1 - (${documents.embedding} <=> ${JSON.stringify(queryEmbedding)})`
+          )
+        )
+        .limit(limit);
+
+      // Merge results, avoiding duplicates
+      const allResults = [...results];
+      const existingIds = new Set(results.map((r) => r.id));
+
+      for (const additionalResult of additionalResults) {
+        if (
+          !existingIds.has(additionalResult.id) &&
+          allResults.length < limit
+        ) {
+          allResults.push(additionalResult);
+        }
+      }
+
+      return allResults.map((result) => ({
+        ...result,
+        metadata: result.metadata as DocumentMetadata | null,
+      }));
+    }
+
     return results.map((result) => ({
       ...result,
       metadata: result.metadata as DocumentMetadata | null,
     }));
   } catch (error) {
-    console.error("Error retrieving relevant documents:", error);
-    return [];
+    console.error("❌ RAG Debug - Error retrieving relevant documents:", error);
+
+    // Final fallback: return some documents without similarity
+    try {
+      let whereCondition: SQL<unknown> = eq(documents.userId, userId);
+      if (subjectId) {
+        whereCondition =
+          and(whereCondition, eq(documents.subjectId, subjectId)) ??
+          whereCondition;
+      }
+
+      const fallbackResults = await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          content: documents.content,
+          fileName: documents.fileName,
+          metadata: documents.metadata,
+        })
+        .from(documents)
+        .where(whereCondition)
+        .orderBy(desc(documents.createdAt))
+        .limit(limit);
+
+      return fallbackResults.map((result) => ({
+        ...result,
+        similarity: 0.4, // Lower similarity for error fallback
+        metadata: result.metadata as DocumentMetadata | null,
+      }));
+    } catch (fallbackError) {
+      console.error("❌ RAG Debug - Even fallback failed:", fallbackError);
+      return [];
+    }
   }
 }
 

@@ -4,19 +4,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   MessageSquare,
-  Settings,
-  Search,
   MoreVertical,
   Eye,
   EyeOff,
+  Trash2,
+  Search,
 } from "lucide-react";
 import {
   useConversations,
   useCreateConversation,
+  useDeleteConversation,
 } from "@/lib/chat/hooks/use-chat";
 import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 import {
@@ -34,6 +34,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useRouter } from "next/navigation";
 
 interface ChatLayoutProps {
   children: React.ReactNode;
@@ -44,9 +56,10 @@ export function ChatLayout({
   children,
   currentConversationId,
 }: ChatLayoutProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [preferences, setPreferences] = useState(getChatPreferences());
-  const { subject, subjectId } = useCurrentSubject();
+  const { subjectId } = useCurrentSubject();
 
   const { data: conversationsData, isLoading } = useConversations({
     subjectId: subjectId || undefined,
@@ -55,6 +68,7 @@ export function ChatLayout({
   });
 
   const createConversation = useCreateConversation();
+  const deleteConversation = useDeleteConversation();
 
   const conversations = conversationsData?.conversations || [];
 
@@ -66,7 +80,7 @@ export function ChatLayout({
     try {
       await createConversation.mutateAsync({
         title: "New Conversation",
-        subjectId: subjectId || undefined, // Convert null to undefined
+        subjectId: subjectId || undefined,
       });
     } catch {
       // Error handled by the hook
@@ -79,11 +93,20 @@ export function ChatLayout({
     toast.success(
       newValue ? "Anti-hallucination enabled" : "Anti-hallucination disabled"
     );
+    router.refresh();
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation.mutateAsync({ id: conversationId });
+    } catch {
+      // Error handled by the hook
+    }
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-slate-900">
-      {/* Sidebar */}
+    <div className="flex h-[calc(100vh-4rem)] bg-slate-900 rounded-md">
+      {/* Chat Sidebar */}
       <div className="w-80 border-r border-slate-700/50 bg-slate-800/50 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-slate-700/50">
@@ -123,23 +146,10 @@ export function ChatLayout({
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Chat Settings
-                </DropdownMenuItem>
+                <DropdownMenuItem>Chat Settings</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-
-          {subject && (
-            <Badge
-              variant="outline"
-              className="mb-3 bg-blue-900/30 text-blue-300 border-blue-700/50"
-            >
-              {subject.name}
-            </Badge>
-          )}
-
           <Button
             onClick={handleCreateConversation}
             disabled={createConversation.isPending}
@@ -190,6 +200,7 @@ export function ChatLayout({
                     key={conversation.id}
                     conversation={conversation}
                     isActive={conversation.id === currentConversationId}
+                    onDelete={() => handleDeleteConversation(conversation.id)}
                   />
                 ))}
               </div>
@@ -198,7 +209,7 @@ export function ChatLayout({
         </ScrollArea>
       </div>
 
-      {/* Main Content */}
+      {/* Main Chat Content */}
       <div className="flex-1 flex flex-col">{children}</div>
     </div>
   );
@@ -212,48 +223,67 @@ interface ConversationItemProps {
     updatedAt: Date;
   };
   isActive: boolean;
+  onDelete: () => void;
 }
 
-function ConversationItem({ conversation, isActive }: ConversationItemProps) {
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date();
-    const diffInHours =
-      Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 1) {
-      return "Just now";
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
-    } else if (diffInHours < 24 * 7) {
-      return `${Math.floor(diffInHours / 24)}d ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
-  };
-
+function ConversationItem({
+  conversation,
+  isActive,
+  onDelete,
+}: ConversationItemProps) {
   return (
-    <a
-      href={`/chat/${conversation.id}`}
+    <div
       className={cn(
-        "block p-3 rounded-lg transition-colors border",
+        "group flex items-center justify-between p-3 rounded-lg transition-colors border",
         isActive
           ? "bg-blue-900/30 border-blue-700/50 text-blue-200"
           : "bg-slate-700/20 border-slate-600/30 text-slate-300 hover:bg-slate-700/40 hover:border-slate-600/50"
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-sm truncate">{conversation.title}</h3>
-          {conversation.description && (
-            <p className="text-xs text-slate-400 truncate mt-1">
-              {conversation.description}
-            </p>
-          )}
+      <a href={`/chat/${conversation.id}`} className="flex-1 min-w-0 block">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-sm truncate">
+              {conversation.title}
+            </h3>
+            {conversation.description && (
+              <p className="text-xs text-slate-400 truncate mt-1">
+                {conversation.description}
+              </p>
+            )}
+          </div>
         </div>
-        <span className="text-xs text-slate-500 shrink-0">
-          {formatRelativeTime(conversation.updatedAt)}
-        </span>
-      </div>
-    </a>
+      </a>
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-400"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{conversation.title}&quot;?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

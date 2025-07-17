@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+"use client";
+
 import { FileUploadZone } from "@/components/app/file-extractor/FileUploadZone";
 import { FileExtractorStats } from "@/components/app/file-extractor/FileExtractorStats";
 import { DocumentLibrary } from "@/components/app/docs/DocumentLibrary";
@@ -6,13 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-export const metadata: Metadata = {
-  title: "Documents",
-  description: "Upload and Manage Documents",
-};
+import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 
 export default function DocumentsPage() {
+  const { subjectId } = useCurrentSubject();
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-2">
@@ -36,7 +35,7 @@ export default function DocumentsPage() {
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">
-          <FileUploadZone />
+          <FileUploadZone subjectId={subjectId || undefined} />
         </TabsContent>
 
         <TabsContent value="library" className="space-y-6">

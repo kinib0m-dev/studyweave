@@ -1,16 +1,27 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+"use client";
+
 import { ChatLayout } from "@/components/app/chat/ChatLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Plus, FileText, Brain, Zap } from "lucide-react";
+import { useCreateConversation } from "@/lib/chat/hooks/use-chat";
+import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 
-export default async function ChatIndexPage() {
-  const session = await auth();
+export default function ChatIndexPage() {
+  const { subjectId } = useCurrentSubject();
 
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
+  const createConversation = useCreateConversation();
+
+  const handleCreateConversation = async () => {
+    try {
+      await createConversation.mutateAsync({
+        title: "New Conversation",
+        subjectId: subjectId || undefined,
+      });
+    } catch {
+      // Error handled by the hook
+    }
+  };
 
   return (
     <ChatLayout>
@@ -79,14 +90,12 @@ export default async function ChatIndexPage() {
           {/* CTA */}
           <div className="space-y-4">
             <Button
-              size="lg"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg"
-              asChild
+              onClick={handleCreateConversation}
+              disabled={createConversation.isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
-              <a href="/chat/new">
-                <Plus className="h-5 w-5 mr-2" />
-                Start New Conversation
-              </a>
+              <Plus className="h-4 w-4 mr-2" />
+              Start New Conversation
             </Button>
 
             <p className="text-sm text-slate-500">

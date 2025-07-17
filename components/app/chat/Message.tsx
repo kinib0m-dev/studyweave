@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,6 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  Info,
 } from "lucide-react";
 import {
   MessageRole,
@@ -28,9 +27,11 @@ import {
   getFileUsageBadgeClass,
   shouldShowFileUsageWarning,
   generateSourceTooltipContent,
-  FormattedSegment,
 } from "@/lib/chat/utils/response-formatter";
-import { getChatPreferences } from "@/lib/chat/utils/preferences";
+import {
+  getChatPreferences,
+  ChatPreferences,
+} from "@/lib/chat/utils/preferences";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -46,12 +47,31 @@ interface MessageProps {
 export function Message({
   role,
   content,
-  createdAt,
   isStructured = false,
   sources,
 }: MessageProps) {
   const [copied, setCopied] = useState(false);
-  const preferences = getChatPreferences();
+  const [preferences, setPreferences] =
+    useState<ChatPreferences>(getChatPreferences());
+
+  // Listen for preference changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setPreferences(getChatPreferences());
+    };
+
+    // Listen for storage changes (when preferences are updated)
+    window.addEventListener("storage", handleStorageChange);
+
+    // Also listen for a custom event we'll dispatch when preferences change
+    window.addEventListener("chatPreferencesChanged", handleStorageChange);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("chatPreferencesChanged", handleStorageChange);
+    };
+  }, []);
 
   const handleCopy = async () => {
     try {
@@ -75,26 +95,15 @@ export function Message({
     }
   };
 
-  const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat("en", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(date);
-  };
-
   if (role === "user") {
     return (
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-end mb-4">
         <div className="flex items-start gap-3 max-w-[80%]">
           <div className="flex-1">
             <div className="bg-blue-600 text-white rounded-2xl rounded-tr-md px-4 py-3">
               <p className="text-sm leading-relaxed">{content}</p>
             </div>
-            <div className="flex items-center justify-end gap-2 mt-2">
-              <span className="text-xs text-slate-500">
-                {formatTime(createdAt)}
-              </span>
+            <div className="flex justify-end mt-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -118,7 +127,7 @@ export function Message({
   }
 
   return (
-    <div className="flex justify-start mb-6">
+    <div className="flex justify-start mb-4">
       <div className="flex items-start gap-3 max-w-[90%]">
         <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center shrink-0 mt-1">
           <Bot className="h-4 w-4 text-slate-300" />
@@ -130,10 +139,7 @@ export function Message({
             preferences={preferences}
             sources={sources}
           />
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-slate-500">
-              {formatTime(createdAt)}
-            </span>
+          <div className="flex justify-start mt-1">
             <Button
               variant="ghost"
               size="sm"
@@ -156,7 +162,7 @@ export function Message({
 interface AssistantMessageContentProps {
   content: string;
   isStructured: boolean;
-  preferences: any;
+  preferences: ChatPreferences;
   sources?: string[];
 }
 
@@ -165,14 +171,31 @@ function AssistantMessageContent({
   isStructured,
   preferences,
 }: AssistantMessageContentProps) {
+  // If anti-hallucination is disabled OR content is not structured, show simple format
   if (!isStructured || !preferences.antiHallucinationEnabled) {
+    // For structured content with anti-hallucination disabled, convert to plain text
+    let displayContent = content;
+    if (isStructured) {
+      try {
+        const parsed: StructuredResponse = JSON.parse(content);
+        displayContent = parsed.response
+          .map((segment) => segment.text)
+          .join(" ");
+      } catch {
+        // If parsing fails, use original content
+      }
+    }
+
     return (
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
-        <p className="text-sm leading-relaxed text-slate-200">{content}</p>
+        <p className="text-sm leading-relaxed text-slate-200">
+          {displayContent}
+        </p>
       </div>
     );
   }
 
+  // Parse structured response for anti-hallucination display
   let structuredResponse: StructuredResponse;
   try {
     structuredResponse = JSON.parse(content);
@@ -255,70 +278,34 @@ function AssistantMessageContent({
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md px-4 py-3">
         <div className="text-sm leading-relaxed">
           <TooltipProvider>
-            {formattedSegments.map((segment) => (
-              <HighlightedSegment key={segment.id} segment={segment} />
-            ))}
+            {formattedSegments.map((segment, index) => {
+              const isFileContent = segment.type === "from_file";
+              const tooltipContent = generateSourceTooltipContent(segment);
+
+              return (
+                <Tooltip key={segment.id}>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={cn(
+                        "transition-all duration-200 cursor-help",
+                        isFileContent
+                          ? "text-emerald-300 bg-emerald-900/20 px-1 py-0.5 rounded border border-emerald-700/30"
+                          : "text-slate-300"
+                      )}
+                    >
+                      {segment.text}
+                      {index < formattedSegments.length - 1 && " "}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs">{tooltipContent}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
           </TooltipProvider>
         </div>
       </div>
-
-      {/* Sources footer */}
-      {preferences.showSourceTooltips && metadata.primarySources.length > 0 && (
-        <div className="text-xs text-slate-400 space-y-1">
-          <div className="flex items-center gap-1">
-            <Info className="h-3 w-3" />
-            <span>Sources used:</span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {metadata.primarySources.slice(0, 3).map((source, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="text-xs bg-slate-700/30 text-slate-400 border-slate-600/50"
-              >
-                {source.documentTitle}
-              </Badge>
-            ))}
-            {metadata.primarySources.length > 3 && (
-              <Badge
-                variant="outline"
-                className="text-xs bg-slate-700/30 text-slate-400 border-slate-600/50"
-              >
-                +{metadata.primarySources.length - 3} more
-              </Badge>
-            )}
-          </div>
-        </div>
-      )}
     </div>
-  );
-}
-
-interface HighlightedSegmentProps {
-  segment: FormattedSegment;
-}
-
-function HighlightedSegment({ segment }: HighlightedSegmentProps) {
-  const tooltipContent = generateSourceTooltipContent(segment);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className={cn(
-            "inline rounded px-1 py-0.5 border transition-all cursor-help",
-            segment.cssClass,
-            segment.type === "from_file"
-              ? "hover:bg-emerald-900/30"
-              : "hover:bg-slate-700/30"
-          )}
-        >
-          {segment.text}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <p className="text-xs whitespace-pre-line">{tooltipContent}</p>
-      </TooltipContent>
-    </Tooltip>
   );
 }

@@ -35,6 +35,13 @@ export function setChatPreferences(
     const current = getChatPreferences();
     const updated = { ...current, ...preferences };
     localStorage.setItem(CHAT_PREFERENCES_KEY, JSON.stringify(updated));
+
+    // Dispatch custom event to notify components about preference changes
+    window.dispatchEvent(
+      new CustomEvent("chatPreferencesChanged", {
+        detail: updated,
+      })
+    );
   } catch (error) {
     console.error("Error saving chat preferences:", error);
   }
@@ -46,3 +53,5 @@ export function toggleAntiHallucination(): boolean {
   setChatPreferences({ antiHallucinationEnabled: newValue });
   return newValue;
 }
+
+export type { ChatPreferences };

@@ -13,7 +13,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useConversationWithMessages } from "@/lib/chat/hooks/use-chat";
-import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 import { Message } from "./Message";
 import { ChatInput } from "./ChatInput";
 import { getChatPreferences } from "@/lib/chat/utils/preferences";
@@ -28,7 +27,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   const { data, isLoading, error, refetch } =
     useConversationWithMessages(conversationId);
-  const { subject } = useCurrentSubject();
 
   const conversation = data?.conversation;
   const messages = conversation?.messages || [];
@@ -120,22 +118,21 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            {subject && (
-              <Badge
-                variant="outline"
-                className="bg-blue-900/30 text-blue-300 border-blue-700/50"
-              >
-                {subject.name}
-              </Badge>
-            )}
-
-            {preferences.antiHallucinationEnabled && (
+            {preferences.antiHallucinationEnabled ? (
               <Badge
                 variant="outline"
                 className="bg-emerald-900/30 text-emerald-300 border-emerald-700/50"
               >
                 <Brain className="h-3 w-3 mr-1" />
                 Anti-hallucination ON
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="bg-red-900/30 text-red-300 border-red-700/50"
+              >
+                <Brain className="h-3 w-3 mr-1" />
+                Anti-hallucination OFF
               </Badge>
             )}
           </div>
