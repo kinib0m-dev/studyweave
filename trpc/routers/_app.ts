@@ -4,6 +4,7 @@ import { adminRouter } from "@/lib/admin/server/procedures";
 import { subjectRouter } from "@/lib/subject/server/procedures";
 import { docsRouter } from "@/lib/docs/server/procedures";
 import { fileExtractorRouter } from "@/lib/file-extractor/server/procedures";
+import { chatRouter } from "@/lib/chat/server/procedures";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -15,6 +16,8 @@ export const appRouter = createTRPCRouter({
   docs: docsRouter,
   // File Extractor
   fileExtractor: fileExtractorRouter,
+  // Chat
+  chat: chatRouter,
 });
 
 // export type definition of API

@@ -268,3 +268,66 @@ export const documents = pgTable(
     createdAtIdx: index("documents_created_at_idx").on(table.createdAt),
   })
 );
+
+// ------------------------------------ CONVERSATIONS ------------------------------------
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+
+    // Conversation metadata
+    title: text("title").notNull(),
+    description: text("description"),
+
+    // Timestamps
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Indexes
+    userIdIdx: index("conversations_user_id_idx").on(table.userId),
+    subjectIdIdx: index("conversations_subject_id_idx").on(table.subjectId),
+    createdAtIdx: index("conversations_created_at_idx").on(table.createdAt),
+  })
+);
+
+// ------------------------------------ MESSAGES ------------------------------------
+export const messages = pgTable(
+  "messages",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+
+    // Message content
+    role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
+    content: text("content").notNull(),
+
+    // Optional metadata
+    metadata: json("metadata"),
+    sources: json("sources"), // Array of document IDs that were used as context
+    tokenCount: integer("token_count"),
+
+    // Timestamps
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Indexes
+    conversationIdIdx: index("messages_conversation_id_idx").on(
+      table.conversationId
+    ),
+    roleIdx: index("messages_role_idx").on(table.role),
+    createdAtIdx: index("messages_created_at_idx").on(table.createdAt),
+  })
+);

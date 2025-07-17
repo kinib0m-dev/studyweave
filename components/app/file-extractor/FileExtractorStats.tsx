@@ -10,10 +10,31 @@ import {
   Clock,
   RefreshCw,
   Loader2,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useExtractionStats } from "@/lib/file-extractor/hooks/use-file-extractor";
+import { useDeleteDocument } from "@/lib/docs/hooks/use-docs";
 import { formatFileSize } from "@/lib/utils/file-utils";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
+import { toast } from "sonner";
 
 interface FileExtractorStatsProps {
   className?: string;
@@ -22,6 +43,32 @@ interface FileExtractorStatsProps {
 export function FileExtractorStats({ className }: FileExtractorStatsProps) {
   const { stats, recentDocuments, isLoading, error, refetch } =
     useExtractionStats();
+  const { deleteDocument, isLoading: isDeleting } = useDeleteDocument();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  const handleDeleteClick = (id: string, title: string) => {
+    setDocumentToDelete({ id, title });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return;
+
+    try {
+      await deleteDocument(documentToDelete.id);
+      toast.success("Document deleted successfully");
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+      refetch(); // Refresh the list
+    } catch (error) {
+      toast.error("Failed to delete document");
+      console.error("Delete error:", error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -89,27 +136,27 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
                   {stats?.totalWords?.toLocaleString() || 0}
                 </p>
               </div>
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <TrendingUp className="h-6 w-6 text-emerald-400" />
+              <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                <TrendingUp className="h-6 w-6 text-green-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Storage Used - Soft Purple */}
+        {/* Total Storage - Soft Purple */}
         <Card className="bg-slate-800/40 backdrop-blur-md border-slate-600/30 hover:bg-slate-800/50 transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-400">
-                  Storage Used
+                  Total Storage
                 </p>
                 <p className="text-2xl font-bold text-slate-200">
                   {formatFileSize(stats?.totalFileSize || 0)}
                 </p>
               </div>
-              <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                <HardDrive className="h-6 w-6 text-violet-400" />
+              <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <HardDrive className="h-6 w-6 text-purple-400" />
               </div>
             </div>
           </CardContent>
@@ -171,7 +218,7 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
               {recentDocuments.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/40 transition-colors"
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/40 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 rounded bg-slate-600/40">
@@ -182,18 +229,44 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
                       <p className="text-sm text-slate-400">{doc.fileName}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-slate-400">
-                      {formatDistanceToNow(new Date(doc.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                    <Badge
-                      variant="outline"
-                      className="mt-1 bg-slate-700/30 border-slate-600/40 text-slate-300"
-                    >
-                      {doc.wordCount?.toLocaleString() || 0} words
-                    </Badge>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm text-slate-400">
+                        {formatDistanceToNow(new Date(doc.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className="mt-1 bg-slate-700/30 border-slate-600/40 text-slate-300"
+                      >
+                        {doc.wordCount?.toLocaleString() || 0} words
+                      </Badge>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-600/50"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="bg-slate-800/95 border-slate-600/50 backdrop-blur-md"
+                      >
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteClick(doc.id, doc.title)}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:text-red-300 focus:bg-red-500/10"
+                          disabled={isDeleting}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Document
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
@@ -201,6 +274,46 @@ export function FileExtractorStats({ className }: FileExtractorStatsProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-slate-800/95 border-slate-600/50 backdrop-blur-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-200">
+              Delete Document
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Are you sure you want to delete &quot;{documentToDelete?.title}
+              &quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50"
+              disabled={isDeleting}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-600/80 hover:bg-red-600 text-white border-red-500/50"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
