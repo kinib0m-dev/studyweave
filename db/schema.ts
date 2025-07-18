@@ -279,9 +279,9 @@ export const conversations = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    subjectId: text("subject_id").references(() => subjects.id, {
-      onDelete: "set null",
-    }),
+    subjectId: text("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
 
     // Conversation metadata
     title: text("title").notNull(),
@@ -295,6 +295,10 @@ export const conversations = pgTable(
     // Indexes
     userIdIdx: index("conversations_user_id_idx").on(table.userId),
     subjectIdIdx: index("conversations_subject_id_idx").on(table.subjectId),
+    userSubjectIdx: index("conversations_user_subject_idx").on(
+      table.userId,
+      table.subjectId
+    ),
     createdAtIdx: index("conversations_created_at_idx").on(table.createdAt),
   })
 );
@@ -314,9 +318,22 @@ export const messages = pgTable(
     role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
     content: text("content").notNull(),
 
+    // Anti-hallucination data - stores source attribution per content segment
+    sourceAttribution: json("source_attribution").$type<{
+      segments: Array<{
+        content: string;
+        sources: Array<{
+          documentId: string;
+          documentTitle: string;
+          confidence: number; // 0-100 percentage
+        }>;
+        overallConfidence: number; // Average confidence for this segment
+      }>;
+    }>(),
+
     // Optional metadata
     metadata: json("metadata"),
-    sources: json("sources"), // Array of document IDs that were used as context
+    sources: json("sources").$type<string[]>(), // Array of document IDs that were used as context
     tokenCount: integer("token_count"),
 
     // Timestamps
