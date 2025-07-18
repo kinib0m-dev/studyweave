@@ -94,7 +94,7 @@ export function ChatInput({ conversationId, onMessageSent }: ChatInputProps) {
   const isDisabled = isLoading || !hasDocuments;
 
   return (
-    <div className="border-t border-slate-700/50 bg-slate-800/30 p-4 space-y-3">
+    <div className="border-t border-white/10 p-4 space-y-3">
       {/* Document status and controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -134,7 +134,7 @@ export function ChatInput({ conversationId, onMessageSent }: ChatInputProps) {
 
       {/* Streaming content display */}
       {isStreaming && streamingContent && (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
+        <div className="sidebar-glass rounded-lg p-3">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
             <span className="text-xs text-slate-400">AI is responding...</span>
@@ -156,7 +156,7 @@ export function ChatInput({ conversationId, onMessageSent }: ChatInputProps) {
                 ? "Ask a question about your study materials..."
                 : "Upload documents first to start chatting..."
             }
-            className="min-h-[44px] max-h-[200px] resize-none pr-12 bg-slate-900/50 border-slate-700/50 text-slate-200 placeholder-slate-500"
+            className="min-h-[44px] max-h-[200px] resize-none pr-12 chat-input-glass text-slate-200 placeholder-slate-500 border-white/20 focus:border-blue-400/50 focus:ring-blue-400/20"
             disabled={isDisabled}
           />
 

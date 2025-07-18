@@ -103,8 +103,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   return (
     <div className="flex-1 flex flex-col h-full max-h-screen">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-slate-700/50 bg-slate-800/30 p-4">
+      {/* Header - Remove background, keep minimal */}
+      <div className="flex-shrink-0 border-b border-white/10 p-4">
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold text-slate-200 truncate">
@@ -139,7 +139,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages - No background, direct on main background */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <ScrollArea ref={scrollAreaRef} className="h-full">
           <div className="p-4">
@@ -179,7 +179,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         </ScrollArea>
       </div>
 
-      {/* Input */}
+      {/* Input - Remove background */}
       <div className="flex-shrink-0">
         <ChatInput
           conversationId={conversationId}
@@ -223,32 +223,31 @@ function ChatWelcome({ conversationTitle }: ChatWelcomeProps) {
               <h3 className="font-semibold text-slate-200">Document-Based</h3>
             </div>
             <p className="text-sm text-slate-400">
-              Answers are primarily based on your uploaded study materials
+              Get answers directly from your uploaded materials
             </p>
           </div>
 
           <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
             <div className="flex items-center gap-3 mb-2">
               <Brain className="h-5 w-5 text-emerald-400" />
-              <h3 className="font-semibold text-slate-200">AI-Enhanced</h3>
-            </div>
-            <p className="text-sm text-slate-400">
-              Combines document insights with AI knowledge for comprehensive
-              answers
-            </p>
-          </div>
-
-          <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="h-5 w-5 text-purple-400" />
               <h3 className="font-semibold text-slate-200">
                 Anti-Hallucination
               </h3>
             </div>
             <p className="text-sm text-slate-400">
               {preferences.antiHallucinationEnabled
-                ? "Enabled - sources are clearly marked"
-                : "Disabled - AI knowledge is freely used"}
+                ? "Advanced verification prevents false information"
+                : "Enable in settings for verified responses"}
+            </p>
+          </div>
+
+          <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <TrendingUp className="h-5 w-5 text-purple-400" />
+              <h3 className="font-semibold text-slate-200">Source Tracking</h3>
+            </div>
+            <p className="text-sm text-slate-400">
+              Every answer includes source references for verification
             </p>
           </div>
         </div>

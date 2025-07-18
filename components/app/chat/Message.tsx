@@ -87,8 +87,8 @@ export function Message({
     return (
       <div className="flex items-start gap-3 justify-end">
         <div className="max-w-[80%] space-y-2">
-          <div className="bg-blue-600/20 border border-blue-500/30 rounded-2xl rounded-tr-md px-4 py-3">
-            <div className="text-sm leading-relaxed text-slate-200">
+          <div className="text-right">
+            <div className="text-sm leading-relaxed text-slate-200 inline-block text-right">
               <ReactMarkdown
                 components={{
                   p: ({ children }) => (
@@ -127,12 +127,14 @@ export function Message({
       </Avatar>
 
       <div className="flex-1 max-w-[80%] space-y-2">
-        <AssistantMessageContent
-          content={content}
-          isStructured={isStructured}
-          preferences={preferences}
-          sources={sources}
-        />
+        <div className="bg-white/10 backdrop-blur-xl border-white/20 shadow-md rounded-2xl rounded-tl-md p-4">
+          <AssistantMessageContent
+            content={content}
+            isStructured={isStructured}
+            preferences={preferences}
+            sources={sources}
+          />
+        </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -181,7 +183,9 @@ function AssistantMessageContent({
   // Common markdown components for consistent styling
   const markdownComponents: Components = {
     p: ({ children }) => (
-      <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>
+      <p className="mb-3 last:mb-0 leading-relaxed text-slate-200">
+        {children}
+      </p>
     ),
     ul: ({ children }) => (
       <ul className="list-disc ml-4 mb-3 space-y-1">{children}</ul>
@@ -220,165 +224,133 @@ function AssistantMessageContent({
     ),
   };
 
-  // If anti-hallucination is disabled OR content is not structured, show unified simple format
-  if (!isStructured || !preferences.antiHallucinationEnabled) {
-    let displayContent = content;
-    if (isStructured) {
-      try {
-        const parsed: StructuredResponse = JSON.parse(content);
-        displayContent = parsed.response
+  // Always try to parse structured content first, regardless of anti-hallucination setting
+  if (isStructured) {
+    try {
+      const structuredResponse: StructuredResponse = JSON.parse(content);
+
+      // If anti-hallucination is disabled, show simple unified format
+      if (!preferences.antiHallucinationEnabled) {
+        const displayContent = structuredResponse.response
           .map((segment) => segment.text)
           .join(" ");
-      } catch {
-        // If parsing fails, use original content
-      }
-    }
 
-    return (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md">
-        <div className="px-4 py-3">
-          <div className="text-sm text-slate-200">
+        return (
+          <div className="prose prose-invert max-w-none">
             <ReactMarkdown components={markdownComponents}>
               {displayContent}
             </ReactMarkdown>
           </div>
-        </div>
-      </div>
-    );
-  }
+        );
+      }
 
-  // Parse structured response for anti-hallucination display
-  let structuredResponse: StructuredResponse;
-  try {
-    structuredResponse = JSON.parse(content);
-  } catch {
-    return (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md">
-        <div className="px-4 py-3">
-          <div className="text-sm text-slate-200">
-            <ReactMarkdown components={markdownComponents}>
-              {content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      </div>
-    );
-  }
+      // If anti-hallucination is enabled, show enhanced format with source attribution
+      const formattedSegments = formatStructuredResponseForUI(
+        structuredResponse,
+        preferences.antiHallucinationEnabled
+      );
 
-  const formattedSegments = formatStructuredResponseForUI(
-    structuredResponse,
-    preferences.antiHallucinationEnabled
-  );
+      return (
+        <TooltipProvider>
+          <div className="space-y-4">
+            {formattedSegments.map((segment, index) => (
+              <div key={index} className="space-y-2">
+                <div className="prose prose-invert max-w-none">
+                  <ReactMarkdown components={markdownComponents}>
+                    {segment.text}
+                  </ReactMarkdown>
+                </div>
 
-  const { metadata } = structuredResponse;
+                {/* Enhanced source and confidence display */}
+                {segment.type === "from_file" &&
+                  segment.sourceDocumentTitle && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs cursor-help transition-colors",
+                              getFileUsageBadgeClass(80) // Default to high confidence styling
+                            )}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            {segment.sourceDocumentTitle}
+                            {preferences.showFileUsagePercentage && (
+                              <span className="ml-1">
+                                ({Math.round((segment.confidence || 0) * 100)}%)
+                              </span>
+                            )}
+                          </Badge>
+                        </TooltipTrigger>
+                        {preferences.showSourceTooltips && (
+                          <TooltipContent>
+                            <div>{generateSourceTooltipContent(segment)}</div>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </div>
+                  )}
 
-  return (
-    <div className="space-y-3">
-      {/* Main Content with Enhanced Structured Display */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl rounded-tl-md">
-        <div className="px-4 py-3">
-          <div className="text-sm leading-relaxed space-y-2">
-            <TooltipProvider>
-              {formattedSegments.map((segment) => (
-                <Tooltip key={segment.id}>
-                  <TooltipTrigger asChild>
-                    <span
-                      className={cn(
-                        "inline-block px-2 py-1 rounded-md border transition-all duration-200 hover:scale-[1.02]",
-                        segment.cssClass,
-                        "cursor-help"
-                      )}
-                    >
-                      <ReactMarkdown
-                        components={{
-                          ...markdownComponents,
-                          p: ({ children }) => <span>{children}</span>,
-                        }}
-                      >
-                        {segment.text}
-                      </ReactMarkdown>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    className="max-w-xs bg-slate-900 border-slate-700"
-                  >
-                    <p className="text-xs">
-                      {generateSourceTooltipContent(segment)}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </TooltipProvider>
-          </div>
-        </div>
-
-        {/* Enhanced Metadata Footer */}
-        <div className="border-t border-slate-700/50 px-4 py-2 bg-slate-900/20">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <Badge
-                variant="outline"
-                className={getFileUsageBadgeClass(metadata.fileUsagePercentage)}
-              >
-                {metadata.fileUsagePercentage}% from files
-              </Badge>
-
-              <span className="text-slate-500">
-                {metadata.totalSegments} segment
-                {metadata.totalSegments !== 1 ? "s" : ""}
-              </span>
-
-              <span className="text-slate-500">
-                {Math.round(metadata.averageConfidence * 100)}% confidence
-              </span>
-            </div>
-
-            {metadata.primarySources && metadata.primarySources.length > 0 && (
-              <div className="flex items-center gap-1">
-                <span className="text-slate-500">
-                  {metadata.primarySources.length} source
-                  {metadata.primarySources.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Primary Sources List (when anti-hallucination is enabled) */}
-      {metadata.primarySources && metadata.primarySources.length > 0 && (
-        <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-3">
-          <h4 className="text-xs font-medium text-slate-300 mb-2 flex items-center gap-1">
-            <FileText className="h-3 w-3" />
-            Primary Sources
-          </h4>
-          <div className="space-y-1">
-            {metadata.primarySources.slice(0, 3).map((source) => (
-              <div
-                key={source.documentId}
-                className="flex items-center justify-between text-xs"
-              >
-                <span className="text-slate-400 truncate max-w-[200px]">
-                  {source.documentTitle}
-                </span>
-                <Badge
-                  variant="outline"
-                  className="bg-slate-700/50 text-slate-300 border-slate-600/50 text-[10px]"
-                >
-                  {source.usageCount} use{source.usageCount !== 1 ? "s" : ""}
-                </Badge>
+                {/* Confidence indicator for anti-hallucination */}
+                {segment.confidence && (
+                  <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
+                    <div className="flex items-center gap-1">
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          segment.confidence >= 0.8
+                            ? "bg-emerald-400"
+                            : segment.confidence >= 0.6
+                              ? "bg-yellow-400"
+                              : "bg-red-400"
+                        )}
+                      />
+                      <span>
+                        Confidence: {Math.round(segment.confidence * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
-            {metadata.primarySources.length > 3 && (
-              <div className="text-xs text-slate-500 text-center pt-1">
-                +{metadata.primarySources.length - 3} more source
-                {metadata.primarySources.length - 3 !== 1 ? "s" : ""}
+
+            {/* Overall metadata */}
+            {structuredResponse.metadata && (
+              <div className="border-t border-slate-600/30 pt-3 mt-4">
+                <div className="text-xs text-slate-400 space-y-1">
+                  <div>
+                    Sources used:{" "}
+                    {structuredResponse.metadata.fileBasedSegments}/
+                    {structuredResponse.metadata.totalSegments} segments
+                  </div>
+                  <div>
+                    File usage:{" "}
+                    {structuredResponse.metadata.fileUsagePercentage}%
+                  </div>
+                  <div>
+                    Average confidence:{" "}
+                    {Math.round(
+                      (structuredResponse.metadata.averageConfidence || 0) * 100
+                    )}
+                    %
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        </TooltipProvider>
+      );
+    } catch (error) {
+      console.error("Failed to parse structured response:", error);
+      // Fallback to treating as plain text
+    }
+  }
+
+  // Fallback to simple format for non-structured content or parsing errors
+  return (
+    <div className="prose prose-invert max-w-none">
+      <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
     </div>
   );
 }

@@ -105,11 +105,11 @@ export function ChatLayout({
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-slate-900 rounded-md">
-      {/* Chat Sidebar */}
-      <div className="w-80 border-r border-slate-700/50 bg-slate-800/50 flex flex-col">
+    <div className="flex h-[calc(100vh-4rem)] rounded-md">
+      {/* Chat Sidebar with Glassmorphism */}
+      <div className="w-80 bg-white/10 backdrop-blur-xl border-white/20 shadow-md  flex flex-col rounded-md">
         {/* Header */}
-        <div className="p-4 border-b border-slate-700/50">
+        <div className="p-4 border-b border-white/10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-blue-400" />
@@ -161,14 +161,14 @@ export function ChatLayout({
         </div>
 
         {/* Search */}
-        <div className="p-4 border-b border-slate-700/50">
+        <div className="p-4 border-b border-white/10">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-700/50 border-slate-600/50 text-slate-200 placeholder:text-slate-400"
+              className="pl-10 bg-white/10 border-white/20 text-slate-200 placeholder:text-slate-400 focus:border-blue-400/50 focus:ring-blue-400/20"
             />
           </div>
         </div>
@@ -181,17 +181,14 @@ export function ChatLayout({
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-16 bg-slate-700/30 rounded-lg animate-pulse"
+                    className="h-16 bg-white/10 rounded-lg animate-pulse"
                   />
                 ))}
               </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="text-center text-slate-400 py-8">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No conversations yet</p>
-                <p className="text-xs mt-1">
-                  Start a new conversation to begin
-                </p>
+              <div className="p-4 text-center">
+                <MessageSquare className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">No conversations yet</p>
               </div>
             ) : (
               <div className="space-y-1">
@@ -199,7 +196,7 @@ export function ChatLayout({
                   <ConversationItem
                     key={conversation.id}
                     conversation={conversation}
-                    isActive={conversation.id === currentConversationId}
+                    isActive={currentConversationId === conversation.id}
                     onDelete={() => handleDeleteConversation(conversation.id)}
                   />
                 ))}
@@ -209,8 +206,8 @@ export function ChatLayout({
         </ScrollArea>
       </div>
 
-      {/* Main Chat Content */}
-      <div className="flex-1 flex flex-col">{children}</div>
+      {/* Main Chat Area with Gap */}
+      <div className="flex-1 flex flex-col gap-2 ml-2">{children}</div>
     </div>
   );
 }
@@ -220,7 +217,7 @@ interface ConversationItemProps {
     id: string;
     title: string;
     description: string | null;
-    updatedAt: Date;
+    createdAt: Date;
   };
   isActive: boolean;
   onDelete: () => void;
@@ -234,16 +231,16 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "group flex items-center justify-between p-3 rounded-lg transition-colors border",
+        "group flex items-center gap-2 p-3 rounded-lg transition-all duration-200 hover:bg-white/15",
         isActive
-          ? "bg-blue-900/30 border-blue-700/50 text-blue-200"
-          : "bg-slate-700/20 border-slate-600/30 text-slate-300 hover:bg-slate-700/40 hover:border-slate-600/50"
+          ? "bg-blue-500/20 border border-blue-400/30"
+          : "hover:bg-white/10"
       )}
     >
       <a href={`/chat/${conversation.id}`} className="flex-1 min-w-0 block">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm truncate">
+            <h3 className="font-medium text-sm truncate text-slate-200">
               {conversation.title}
             </h3>
             {conversation.description && (
