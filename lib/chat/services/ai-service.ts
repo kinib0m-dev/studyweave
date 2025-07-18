@@ -19,16 +19,27 @@ export interface AIServiceResponse {
 }
 
 export class AIService {
-  private static genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+  private static genAI = process.env.GOOGLE_AI_API_KEY
+    ? new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
+    : null;
 
   /**
-   * Generate response using Gemini 2.0 Flash with fallback to 1.5 Pro
+   * Generate response using Gemini 2.0 Flash with fallback to 1.5 Pro or mock response
    */
   static async generateResponse(
     userMessage: string,
     relevantDocuments: RAGDocument[],
     conversationHistory: Array<{ role: string; content: string }> = []
   ): Promise<AIServiceResponse> {
+    // Development mode - return mock response if no API key
+    if (
+      !process.env.GOOGLE_AI_API_KEY ||
+      process.env.NODE_ENV === "development"
+    ) {
+      console.log("Using mock AI response for development");
+      return this.generateMockResponse();
+    }
+
     const systemPrompt = this.createSystemPrompt(relevantDocuments);
     const userPrompt = this.createUserPrompt(userMessage);
 
@@ -52,10 +63,34 @@ export class AIService {
           conversationHistory
         );
       } catch (fallbackError) {
-        console.error("Both Gemini models failed:", fallbackError);
-        throw new Error("AI service unavailable. Please try again later.");
+        console.error(
+          "Both Gemini models failed, using mock response:",
+          fallbackError
+        );
+        return this.generateMockResponse();
       }
     }
+  }
+
+  /**
+   * Generate mock response for server errors
+   */
+  private static generateMockResponse(): AIServiceResponse {
+    const content = "There is a server error, try again shortly.";
+
+    return {
+      content,
+      sourceAttribution: {
+        segments: [
+          {
+            content,
+            sources: [],
+            overallConfidence: 0,
+          },
+        ],
+      },
+      tokenCount: this.estimateTokenCount(content),
+    };
   }
 
   private static async callGeminiModel(
@@ -64,6 +99,10 @@ export class AIService {
     userPrompt: string,
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<AIServiceResponse> {
+    if (!this.genAI) {
+      throw new Error("Google AI not initialized");
+    }
+
     const model = this.genAI.getGenerativeModel({ model: modelName });
 
     // Build conversation context
