@@ -34,7 +34,7 @@ export function ChatInterface({ initialConversationId }: ChatInterfaceProps) {
 
   if (!hasSubject) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
           <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-semibold mb-2">No Subject Selected</h3>
@@ -49,29 +49,26 @@ export function ChatInterface({ initialConversationId }: ChatInterfaceProps) {
   const handleNewConversation = () => {
     setSelectedConversationId(null);
     setShowNewChat(true);
-    // Update URL to reflect new chat state
     router.push("/chat");
   };
 
   const handleConversationSelect = (conversationId: string) => {
     setSelectedConversationId(conversationId);
     setShowNewChat(false);
-    // Update URL to reflect selected conversation
     router.push(`/chat/${conversationId}`);
   };
 
   const handleConversationCreated = (conversationId: string) => {
     setSelectedConversationId(conversationId);
     setShowNewChat(false);
-    // Update URL to reflect new conversation
     router.push(`/chat/${conversationId}`);
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between p-4">
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
+      {/* Fixed Header - Explicit height */}
+      <div className="h-20 shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex items-center justify-between p-4 h-full">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-primary" />
             <div>
@@ -93,10 +90,10 @@ export function ChatInterface({ initialConversationId }: ChatInterfaceProps) {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Conversation Sidebar */}
-        <div className="w-80 border-r bg-muted/20 flex flex-col">
+      {/* Main Content - Takes remaining height */}
+      <div className="flex-1 flex min-h-0">
+        {/* Conversation Sidebar - Fixed Width */}
+        <div className="w-80 shrink-0 border-r bg-muted/20">
           <ConversationList
             subjectId={subjectId!}
             selectedConversationId={selectedConversationId}
@@ -105,8 +102,8 @@ export function ChatInterface({ initialConversationId }: ChatInterfaceProps) {
           />
         </div>
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
+        {/* Chat Area - Takes remaining width */}
+        <div className="flex-1 min-w-0">
           <ChatWindow
             conversationId={selectedConversationId}
             showNewChat={showNewChat}

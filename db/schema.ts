@@ -14,21 +14,24 @@ import {
 import type { AdapterAccountType } from "next-auth/adapters";
 
 export const users = pgTable(
-  "users",
+  "user",
   {
+    // Auth.js required fields
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     name: text("name"),
     email: text("email").unique(),
+    emailVerified: timestamp("emailVerified", { mode: "date" }),
+    image: text("image"),
+
+    // Custom fields
     emailStatus: text("email_status", {
       enum: ["pending", "confirmed", "expired"],
     }).default("pending"),
-    emailVerified: timestamp("email_verified", { mode: "date" }),
     accountStatus: text("account_status", {
       enum: ["active", "suspended", "deleted"],
     }).default("active"),
-    image: text("image"),
     password: text("password"),
     isTwoFactorEnabled: boolean("is_two_factor_enabled").default(false),
     failedLoginAttempts: integer("failed_login_attempts").default(0),
@@ -37,6 +40,7 @@ export const users = pgTable(
     }),
     lockedUntil: timestamp("locked_until", { mode: "date" }),
     securityVersion: integer("security_version").default(1),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -53,12 +57,12 @@ export const users = pgTable(
 export const accounts = pgTable(
   "account",
   {
-    userId: text("user_id")
+    userId: text("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     type: text("type").$type<AdapterAccountType>().notNull(),
     provider: text("provider").notNull(),
-    providerAccountId: text("provider_account_id").notNull(),
+    providerAccountId: text("providerAccountId").notNull(),
     refresh_token: text("refresh_token"),
     access_token: text("access_token"),
     expires_at: integer("expires_at"),
@@ -77,6 +81,14 @@ export const accounts = pgTable(
     index("accounts_user_id_idx").on(account.userId),
   ]
 );
+
+export const sessions = pgTable("session", {
+  sessionToken: text("sessionToken").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { mode: "date" }).notNull(),
+});
 
 export const loginActivities = pgTable(
   "login_activities",

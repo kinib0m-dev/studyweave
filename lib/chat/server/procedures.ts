@@ -5,8 +5,8 @@ import {
 } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
-import { conversations, messages } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { conversations, messages, documents } from "@/db/schema";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import {
   createConversationSchema,
   sendMessageSchema,
@@ -17,6 +17,55 @@ import {
 import { RAGService } from "../services/rag-service";
 import { AIService } from "../services/ai-service";
 import { ConversationUtils } from "../utils/conversation-utils";
+
+/**
+ * Helper function to enrich message with source data
+ */
+async function enrichMessageWithSources(message: any) {
+  if (
+    !message.sources ||
+    !Array.isArray(message.sources) ||
+    message.sources.length === 0
+  ) {
+    return {
+      ...message,
+      sources: null,
+      confidence: null,
+    };
+  }
+
+  try {
+    // Fetch document details for the source IDs
+    const sourceDocuments = await db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        fileName: documents.fileName,
+      })
+      .from(documents)
+      .where(inArray(documents.id, message.sources));
+
+    // Transform to the expected format
+    const enrichedSources = sourceDocuments.map((doc) => ({
+      documentId: doc.id,
+      documentTitle: doc.fileName || doc.title,
+      relevance: 0.8, // Default relevance since we don't store this in DB yet
+    }));
+
+    return {
+      ...message,
+      sources: enrichedSources,
+      confidence: 0.8, // Default confidence since we don't store this in DB yet
+    };
+  } catch (error) {
+    console.error("Error enriching message with sources:", error);
+    return {
+      ...message,
+      sources: null,
+      confidence: null,
+    };
+  }
+}
 
 /**
  * Helper function to process a message and generate AI response
@@ -66,22 +115,31 @@ async function processMessage(
     conversationHistory
   );
 
-  // Save assistant message
   const [assistantMessage] = await db
     .insert(messages)
     .values({
       conversationId,
       role: "assistant",
       content: aiResponse.content,
-      sourceAttribution: aiResponse.sourceAttribution,
-      sources: relevantDocuments.map((doc) => doc.id),
+      sources: aiResponse.sources.map((s) => s.documentId),
       tokenCount: aiResponse.tokenCount,
     })
     .returning();
 
+  // Enrich the assistant message with full source data
+  const enrichedAssistantMessage = await enrichMessageWithSources({
+    ...assistantMessage,
+    sources: aiResponse.sources.map((s) => s.documentId),
+    confidence: aiResponse.confidence,
+  });
+
   return {
-    userMessage,
-    assistantMessage,
+    userMessage: await enrichMessageWithSources(userMessage),
+    assistantMessage: {
+      ...enrichedAssistantMessage,
+      sources: aiResponse.sources, // Use the full source objects from AI response
+      confidence: aiResponse.confidence,
+    },
   };
 }
 
@@ -96,7 +154,7 @@ export const chatRouter = createTRPCRouter({
 
         // Generate title from first message if not provided
         const conversationTitle =
-          title || ConversationUtils.generateConversationTitle(firstMessage);
+          title || AIService.generateConversationTitle(firstMessage);
 
         // Create the conversation
         const [newConversation] = await db
@@ -139,19 +197,15 @@ export const chatRouter = createTRPCRouter({
         const userId = ctx.userId as string;
         const { conversationId, content } = input;
 
-        // Verify conversation exists and user has access
-        const [conversation] = await db
+        // Verify conversation belongs to user
+        const conversation = await db
           .select()
           .from(conversations)
-          .where(
-            and(
-              eq(conversations.id, conversationId),
-              eq(conversations.userId, userId)
-            )
-          )
-          .limit(1);
+          .where(eq(conversations.id, conversationId))
+          .limit(1)
+          .then((results) => results[0]);
 
-        if (!conversation) {
+        if (!conversation || conversation.userId !== userId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Conversation not found",
@@ -165,12 +219,6 @@ export const chatRouter = createTRPCRouter({
           userId,
           conversation.subjectId
         );
-
-        // Update conversation timestamp
-        await db
-          .update(conversations)
-          .set({ updatedAt: new Date() })
-          .where(eq(conversations.id, conversationId));
 
         return {
           success: true,
@@ -189,7 +237,7 @@ export const chatRouter = createTRPCRouter({
       }
     }),
 
-  // Get all conversations for a subject
+  // Get conversations for a subject
   getConversations: subjectProcedure
     .input(getConversationsSchema)
     .query(async ({ ctx, input }) => {
@@ -197,11 +245,10 @@ export const chatRouter = createTRPCRouter({
         const userId = ctx.userId as string;
         const { subjectId, limit, offset } = input;
 
-        const conversationList = await db
+        const results = await db
           .select({
             id: conversations.id,
             title: conversations.title,
-            description: conversations.description,
             createdAt: conversations.createdAt,
             updatedAt: conversations.updatedAt,
           })
@@ -218,7 +265,7 @@ export const chatRouter = createTRPCRouter({
 
         return {
           success: true,
-          conversations: conversationList,
+          conversations: results,
         };
       } catch (error) {
         console.error("Error fetching conversations:", error);
@@ -229,7 +276,7 @@ export const chatRouter = createTRPCRouter({
       }
     }),
 
-  // Get messages for a specific conversation
+  // Get messages for a conversation
   getConversationMessages: protectedProcedure
     .input(getConversationMessagesSchema)
     .query(async ({ ctx, input }) => {
@@ -237,52 +284,40 @@ export const chatRouter = createTRPCRouter({
         const userId = ctx.userId as string;
         const { conversationId, limit, offset } = input;
 
-        // Verify conversation exists and user has access
-        const [conversation] = await db
+        // Verify conversation belongs to user
+        const conversation = await db
           .select()
           .from(conversations)
-          .where(
-            and(
-              eq(conversations.id, conversationId),
-              eq(conversations.userId, userId)
-            )
-          )
-          .limit(1);
+          .where(eq(conversations.id, conversationId))
+          .limit(1)
+          .then((results) => results[0]);
 
-        if (!conversation) {
+        if (!conversation || conversation.userId !== userId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Conversation not found",
           });
         }
 
-        // Get messages
-        const messageList = await db
-          .select({
-            id: messages.id,
-            role: messages.role,
-            content: messages.content,
-            sourceAttribution: messages.sourceAttribution,
-            sources: messages.sources,
-            tokenCount: messages.tokenCount,
-            createdAt: messages.createdAt,
-          })
+        const results = await db
+          .select()
           .from(messages)
           .where(eq(messages.conversationId, conversationId))
           .orderBy(messages.createdAt)
           .limit(limit)
           .offset(offset);
 
+        // Enrich all messages with source data
+        const enrichedMessages = await Promise.all(
+          results.map(enrichMessageWithSources)
+        );
+
         return {
           success: true,
-          conversation,
-          messages: messageList,
+          messages: enrichedMessages,
         };
       } catch (error) {
-        console.error("Error fetching conversation messages:", error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
+        console.error("Error fetching messages:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to fetch messages",
@@ -298,38 +333,37 @@ export const chatRouter = createTRPCRouter({
         const userId = ctx.userId as string;
         const { conversationId } = input;
 
-        // Verify conversation exists and user has access
-        const [conversation] = await db
+        // Verify conversation belongs to user
+        const conversation = await db
           .select()
           .from(conversations)
-          .where(
-            and(
-              eq(conversations.id, conversationId),
-              eq(conversations.userId, userId)
-            )
-          )
-          .limit(1);
+          .where(eq(conversations.id, conversationId))
+          .limit(1)
+          .then((results) => results[0]);
 
-        if (!conversation) {
+        if (!conversation || conversation.userId !== userId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Conversation not found",
           });
         }
 
-        // Delete the conversation (messages will be cascade deleted)
+        // Delete messages first (foreign key constraint)
+        await db
+          .delete(messages)
+          .where(eq(messages.conversationId, conversationId));
+
+        // Delete conversation
         await db
           .delete(conversations)
           .where(eq(conversations.id, conversationId));
 
         return {
           success: true,
+          message: "Conversation deleted successfully",
         };
       } catch (error) {
         console.error("Error deleting conversation:", error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to delete conversation",

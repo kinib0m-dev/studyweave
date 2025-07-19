@@ -20,9 +20,5 @@ export default async function ChatPage({
     redirect("/login");
   }
 
-  return (
-    <div className="h-full">
-      <ChatInterface initialConversationId={id} />
-    </div>
-  );
+  return <ChatInterface initialConversationId={id} />;
 }

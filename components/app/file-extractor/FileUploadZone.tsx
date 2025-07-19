@@ -300,7 +300,7 @@ export function FileUploadZone({
                   className={cn(
                     "flex items-center gap-4 p-4 rounded-lg transition-colors",
                     isProcessing
-                      ? "bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800"
+                      ? "bg-blue-950/20 border border-blue-800"
                       : "bg-muted/30"
                   )}
                 >
@@ -313,7 +313,7 @@ export function FileUploadZone({
                         {formatFileSize(file.size)}
                       </span>
                       {isProcessing && (
-                        <span className="text-xs text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">
+                        <span className="text-xs text-blue-600 bg-blue-900/30 px-2 py-1 rounded">
                           Processing...
                         </span>
                       )}

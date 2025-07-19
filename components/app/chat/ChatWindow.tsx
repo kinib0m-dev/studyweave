@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect } from "react";
 import { useCurrentSubject } from "@/lib/subject/hooks/use-current-subject";
 import {
   useConversationMessages,
@@ -43,16 +43,18 @@ export function ChatWindow({
   const messages = messagesData?.messages || [];
 
   // Auto-scroll to bottom when new messages arrive
-  useMemo(() => {
-    if (scrollAreaRef.current) {
+  useEffect(() => {
+    if (scrollAreaRef.current && messages.length > 0) {
       const scrollElement = scrollAreaRef.current.querySelector(
         "[data-radix-scroll-area-viewport]"
       );
       if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
+        setTimeout(() => {
+          scrollElement.scrollTop = scrollElement.scrollHeight;
+        }, 100);
       }
     }
-  }, []);
+  }, [messages.length]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -70,10 +72,8 @@ export function ChatWindow({
 
     try {
       if (conversationId) {
-        // Send message to existing conversation
         await sendMessageToConversation(conversationId, messageContent);
       } else {
-        // Create new conversation with first message
         const result = await startNewConversation(messageContent);
         if (result?.conversation?.id) {
           onConversationCreated(result.conversation.id);
@@ -81,7 +81,7 @@ export function ChatWindow({
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      setInput(messageContent); // Restore the message on error
+      setInput(messageContent);
     }
   };
 
@@ -98,64 +98,39 @@ export function ChatWindow({
   if (showNewChat || !conversationId) {
     return (
       <div className="h-full flex flex-col">
-        {/* Welcome Message */}
-        <div className="flex-1 flex items-center justify-center">
-          <Card className="p-8 text-center max-w-2xl mx-4">
-            <div className="mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="h-8 w-8 text-primary" />
-              </div>
-              <h2 className="text-2xl font-semibold mb-2">
-                StudyWeave Assistant
-              </h2>
-              <p className="text-muted-foreground">
-                Ask me anything about your course materials. I&apos;ll provide
-                accurate answers with source attribution and confidence scores.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-              <div className="p-4 rounded-lg bg-muted/50">
-                <h3 className="font-medium mb-2">📚 Study Help</h3>
-                <p className="text-sm text-muted-foreground">
-                  &quot;Explain the key concepts from Chapter 5&quot;
+        {/* Welcome Message - Takes available space */}
+        <div className="flex-1 min-h-0">
+          <div className="h-full flex items-center justify-center p-4">
+            <Card className="p-8 text-center max-w-2xl">
+              <div className="mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <MessageSquare className="h-8 w-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-semibold mb-2">
+                  StudyWeave Assistant
+                </h2>
+                <p className="text-muted-foreground">
+                  Ask me anything about your course materials. I&apos;ll provide
+                  accurate answers with source attribution and confidence
+                  scores.
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-muted/50">
-                <h3 className="font-medium mb-2">🔍 Quick Questions</h3>
-                <p className="text-sm text-muted-foreground">
-                  &quot;What are the main differences between X and Y?&quot;
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/50">
-                <h3 className="font-medium mb-2">📝 Test Prep</h3>
-                <p className="text-sm text-muted-foreground">
-                  &quot;Create practice questions for the upcoming exam&quot;
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/50">
-                <h3 className="font-medium mb-2">💡 Clarification</h3>
-                <p className="text-sm text-muted-foreground">
-                  &quot;I don&apos;t understand this formula, can you
-                  help?&quot;
-                </p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
 
-        {/* Input Area */}
-        <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        {/* Input Area - Natural height */}
+        <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
           <div className="max-w-4xl mx-auto">
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <Textarea
                   ref={textareaRef}
-                  placeholder="Ask me anything about your course materials..."
+                  placeholder="Start a conversation about your study materials..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="min-h-[50px] max-h-[120px] resize-none pr-12"
+                  className="min-h-[50px] max-h-[120px] resize-none"
                   disabled={isLoading}
                 />
               </div>
@@ -180,30 +155,32 @@ export function ChatWindow({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Messages Area */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              showSources={showSources}
-            />
-          ))}
+      {/* Messages Area - Takes available space */}
+      <div className="flex-1 min-h-0">
+        <ScrollArea ref={scrollAreaRef} className="h-full">
+          <div className="max-w-4xl mx-auto space-y-6 p-4 pb-6">
+            {messages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                showSources={showSources}
+              />
+            ))}
 
-          {isLoading && (
-            <div className="flex justify-center py-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Thinking...</span>
+            {isLoading && (
+              <div className="flex justify-center py-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Thinking...</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
-      {/* Input Area */}
-      <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {/* Input Area - Natural height */}
+      <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex gap-3">
             <div className="flex-1 relative">
@@ -213,7 +190,7 @@ export function ChatWindow({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="min-h-[50px] max-h-[120px] resize-none pr-12"
+                className="min-h-[50px] max-h-[120px] resize-none"
                 disabled={isLoading}
               />
             </div>

@@ -51,16 +51,9 @@ export function SubjectSwitcher() {
     );
   }
 
-  if (!currentSubject) {
-    return (
-      <div className="flex items-center gap-2 p-2 text-muted-foreground">
-        <Building2 className="h-5 w-5" />
-        <span className="text-sm font-medium">No subject</span>
-      </div>
-    );
-  }
-
-  const currentSubjectColor = getSubjectColor(currentSubject.color);
+  const currentSubjectColor = currentSubject
+    ? getSubjectColor(currentSubject.color)
+    : null;
 
   return (
     <>
@@ -74,19 +67,34 @@ export function SubjectSwitcher() {
             className="w-full justify-between h-10 px-3 bg-muted/50 hover:bg-muted"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={cn(
-                  "h-6 w-6 rounded flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold",
-                  currentSubjectColor.bg
-                )}
-              >
-                {currentSubject.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex flex-col items-start min-w-0">
-                <span className="text-sm font-medium truncate max-w-[200px]">
-                  {currentSubject.name}
-                </span>
-              </div>
+              {currentSubject ? (
+                <>
+                  <div
+                    className={cn(
+                      "h-6 w-6 rounded flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold",
+                      currentSubjectColor?.bg
+                    )}
+                  >
+                    {currentSubject.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="text-sm font-medium truncate max-w-[200px]">
+                      {currentSubject.name}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="h-6 w-6 rounded flex-shrink-0 flex items-center justify-center bg-muted border-2 border-dashed border-muted-foreground/50">
+                    <Building2 className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px]">
+                      No current subject
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
             <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
           </Button>

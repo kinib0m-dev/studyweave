@@ -8,19 +8,10 @@ import {
   FileText,
   Search,
   Trash2,
-  MoreHorizontal,
   RefreshCw,
   Loader2,
   CalendarDays,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -271,34 +262,15 @@ export function DocumentLibrary({
                           </p>
                         </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-600/50"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="bg-slate-800/95 border-slate-600/50 backdrop-blur-md"
-                        >
-                          <DropdownMenuLabel className="text-slate-300">
-                            Actions
-                          </DropdownMenuLabel>
-                          <DropdownMenuSeparator className="bg-slate-600/50" />
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteClick(doc.id, doc.title)}
-                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:text-red-300 focus:bg-red-500/10"
-                            disabled={isDeleting}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        size={"icon"}
+                        variant={"ghost"}
+                        onClick={() => handleDeleteClick(doc.id, doc.title)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:text-red-300 focus:bg-red-500/10"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
 
                     <div className="space-y-2">

@@ -6,7 +6,7 @@ import { UserMenu } from "@/components/app/UserMenu";
 import { SubjectSwitcher } from "./subjects/SubjectSwitcher";
 import { useSubject } from "@/lib/subject/context/subject-context";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Building2, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -18,7 +18,7 @@ type AppTopNavProps = {
 };
 
 export function AppNav({ name, email, image }: AppTopNavProps) {
-  const { subjects, isLoading } = useSubject();
+  const { isLoading } = useSubject();
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -33,13 +33,8 @@ export function AppNav({ name, email, image }: AppTopNavProps) {
             <div className="h-6 w-6 rounded bg-slate-600 animate-pulse" />
             <div className="h-4 w-24 rounded bg-slate-600 animate-pulse" />
           </div>
-        ) : subjects.length > 0 ? (
-          <SubjectSwitcher />
         ) : (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-700/50 text-slate-400">
-            <Building2 className="h-5 w-5" />
-            <span className="text-sm">No subject selected</span>
-          </div>
+          <SubjectSwitcher />
         )}
       </div>
 
@@ -156,14 +151,9 @@ export function AppNav({ name, email, image }: AppTopNavProps) {
                 <div className="h-8 w-8 rounded bg-muted animate-pulse" />
                 <div className="h-4 w-32 rounded bg-muted animate-pulse" />
               </div>
-            ) : subjects.length > 0 ? (
+            ) : (
               <div className="w-full max-w-xs">
                 <SubjectSwitcher />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Building2 className="h-5 w-5" />
-                <span className="text-sm font-medium">No subject selected</span>
               </div>
             )}
           </div>

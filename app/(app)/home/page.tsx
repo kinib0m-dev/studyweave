@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div>
+    <div className="flex flex-col gap-10 items-center">
       <Link href={"/docs"}>Upload Documents</Link>
     </div>
   );

@@ -50,7 +50,44 @@ export const deleteConversationSchema = z.object({
 
 export type DeleteConversationSchema = z.infer<typeof deleteConversationSchema>;
 
-// Source attribution types
+// Simplified AI response schema for the new implementation
+export const studyWeaveResponseSchema = z.object({
+  content: z.string().describe("The main response content in markdown format"),
+  sources: z
+    .array(
+      z.object({
+        documentId: z.string(),
+        documentTitle: z.string(),
+        relevance: z
+          .number()
+          .min(0)
+          .max(1)
+          .describe("How relevant this source was (0-1)"),
+      })
+    )
+    .describe("Sources used to generate the response"),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Overall confidence in the response (0-1)"),
+});
+
+export type StudyWeaveResponse = z.infer<typeof studyWeaveResponseSchema>;
+
+// API response interface
+export interface AIServiceResponse {
+  content: string;
+  sources: Array<{
+    documentId: string;
+    documentTitle: string;
+    relevance: number;
+  }>;
+  confidence: number;
+  tokenCount?: number;
+}
+
+// Legacy schemas for backward compatibility (can be removed later)
 export const sourceAttributionSchema = z.object({
   segments: z.array(
     z.object({
@@ -69,7 +106,6 @@ export const sourceAttributionSchema = z.object({
 
 export type SourceAttributionSchema = z.infer<typeof sourceAttributionSchema>;
 
-// AI response schema for internal use
 export const aiResponseSchema = z.object({
   content: z.string(),
   sourceAttribution: sourceAttributionSchema,

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { generateEmbedding } from "@/lib/utils/embedding";
-import { sql, desc } from "drizzle-orm";
+import { sql, desc, eq, and } from "drizzle-orm";
 
 export interface RAGDocument {
   id: string;
@@ -27,15 +27,16 @@ export class RAGService {
 
       if (!queryEmbedding) {
         console.warn("Could not generate embedding for query");
-        return [];
+        return this.getFallbackDocuments(userId, subjectId, maxResults);
       }
 
-      // Initial similarity threshold
-      let similarityThreshold = 0.5;
+      // Start with a lower, more permissive similarity threshold
       let results: RAGDocument[] = [];
 
-      // Adaptive retrieval - adjust threshold if too many results
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Try progressively higher thresholds if we get too many results
+      const thresholds = [0.2, 0.3, 0.4, 0.5];
+
+      for (const threshold of thresholds) {
         const rawResults = await db
           .select({
             id: documents.id,
@@ -52,14 +53,14 @@ export class RAGService {
             sql`${documents.userId} = ${userId} 
                 AND ${documents.subjectId} = ${subjectId}
                 AND ${documents.embedding} IS NOT NULL
-                AND (1 - (${documents.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)) > ${similarityThreshold}`
+                AND (1 - (${documents.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)) > ${threshold}`
           )
           .orderBy(
             desc(
               sql`1 - (${documents.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`
             )
           )
-          .limit(Math.min(maxResults + 4, 10)); // Get a few extra to account for filtering
+          .limit(20); // Get more initially to have options
 
         results = rawResults.map((row) => ({
           id: row.id,
@@ -69,36 +70,144 @@ export class RAGService {
           similarity: row.similarity,
         }));
 
-        // If we have too many results (>10), increase threshold
-        if (results.length > 10) {
-          similarityThreshold += 0.1;
-          continue;
-        }
+        console.log(
+          `🔍 RAG Debug - Found ${results.length} documents with threshold ${threshold}`
+        );
 
-        // If we have a good number, take the top maxResults
-        if (results.length <= maxResults) {
+        // If we have some good results (not too many, not too few), use them
+        if (results.length >= 1 && results.length <= 15) {
           break;
         }
 
-        // If we have between maxResults and 10, take the top maxResults
-        results = results.slice(0, maxResults);
-        break;
+        // If we have too many results, try a higher threshold
+        if (results.length > 15) {
+          continue;
+        }
+
+        // If we have very few results with this threshold, try to get more with fallback
+        if (
+          results.length === 0 &&
+          threshold === thresholds[thresholds.length - 1]
+        ) {
+          console.log(
+            "🔍 RAG Debug - No results found even with highest threshold, trying fallback"
+          );
+          return this.getFallbackDocuments(userId, subjectId, maxResults);
+        }
       }
 
-      // Always ensure we get minimum of 3 if available
-      const finalResults = results.slice(
-        0,
-        Math.max(Math.min(results.length, maxResults), 3)
-      );
+      // If we still have no results, try a hybrid approach
+      if (results.length === 0) {
+        console.log(
+          "🔍 RAG Debug - No semantic matches found, trying hybrid approach"
+        );
+        return this.getHybridResults(query, userId, subjectId, maxResults);
+      }
 
-      console.log(
-        `RAG retrieved ${finalResults.length} documents with similarity threshold ${similarityThreshold}`
-      );
+      // Take the best results
+      const finalResults = results.slice(0, maxResults);
 
       return finalResults;
     } catch (error) {
-      console.error("Error retrieving relevant documents:", error);
+      console.error(
+        "❌ RAG Debug - Error retrieving relevant documents:",
+        error
+      );
+      // Fallback to recent documents if vector search fails completely
+      return this.getFallbackDocuments(userId, subjectId, maxResults);
+    }
+  }
+
+  /**
+   * Fallback method to get recent documents when vector search fails
+   */
+  private static async getFallbackDocuments(
+    userId: string,
+    subjectId: string,
+    maxResults: number
+  ): Promise<RAGDocument[]> {
+    try {
+      const results = await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          content: documents.content,
+          fileName: documents.fileName,
+        })
+        .from(documents)
+        .where(
+          and(eq(documents.userId, userId), eq(documents.subjectId, subjectId))
+        )
+        .orderBy(desc(documents.createdAt))
+        .limit(maxResults);
+
+      return results.map((row) => ({
+        ...row,
+        similarity: 0.4, // Assign a default similarity for fallback
+      }));
+    } catch (error) {
+      console.error(
+        "❌ RAG Debug - Fallback document retrieval failed:",
+        error
+      );
       return [];
+    }
+  }
+
+  /**
+   * Hybrid approach: combine vector search with keyword matching
+   */
+  private static async getHybridResults(
+    query: string,
+    userId: string,
+    subjectId: string,
+    maxResults: number
+  ): Promise<RAGDocument[]> {
+    try {
+      // Extract key terms from the query for text search
+      const queryTerms = query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((term) => term.length > 2) // Filter out short words
+        .slice(0, 5); // Take first 5 meaningful terms
+
+      if (queryTerms.length === 0) {
+        return this.getFallbackDocuments(userId, subjectId, maxResults);
+      }
+
+      // Build a text search condition
+      const searchConditions = queryTerms.map(
+        (term) =>
+          sql`(LOWER(${documents.content}) LIKE ${`%${term}%`} OR LOWER(${documents.title}) LIKE ${`%${term}%`})`
+      );
+
+      const textSearchCondition = sql.join(searchConditions, sql` OR `);
+
+      const results = await db
+        .select({
+          id: documents.id,
+          title: documents.title,
+          content: documents.content,
+          fileName: documents.fileName,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.userId, userId),
+            eq(documents.subjectId, subjectId),
+            textSearchCondition
+          )
+        )
+        .orderBy(desc(documents.createdAt))
+        .limit(maxResults);
+
+      return results.map((row) => ({
+        ...row,
+        similarity: 0.3, // Lower similarity for keyword matches
+      }));
+    } catch (error) {
+      console.error("❌ RAG Debug - Hybrid search failed:", error);
+      return this.getFallbackDocuments(userId, subjectId, maxResults);
     }
   }
 
